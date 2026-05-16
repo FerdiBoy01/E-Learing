@@ -5,33 +5,29 @@ const createCourse = async (courseData) => {
   return await prisma.course.create({ data: courseData });
 };
 
-const getAllCourses = async () => {
-  // Mengambil daftar course beserta data nama dosen pengajarnya
+const findCourses = async (whereCondition) => {
   return await prisma.course.findMany({
+    where: whereCondition,
     include: {
-      lecturer: {
-        select: { id: true, name: true, email: true },
-      },
-      _count: {
-        select: { chapters: true }, // Menghitung jumlah bab
-      },
+      lecturer: { select: { name: true, avatar_url: true } },
+      _count: { select: { chapters: true, enrollments: true } },
     },
+    orderBy: { created_at: 'desc' },
   });
 };
 
-const getCourseById = async (id) => {
+const findCourseById = async (id) => {
   return await prisma.course.findUnique({
     where: { id },
     include: {
-      lecturer: {
-        select: { id: true, name: true, email: true },
-      },
+      lecturer: { select: { name: true, profession: true, bio: true, avatar_url: true } },
+      _count: { select: { enrollments: true } },
       chapters: {
-        orderBy: { order_index: 'asc' }, // Urutkan bab berdasarkan urutan
+        orderBy: { order_index: 'asc' },
         include: {
           materials: {
             orderBy: { order_index: 'asc' },
-            select: { id: true, title: true, type: true }, // Jangan ambil 'content' dulu agar response tidak terlalu berat
+            select: { id: true, title: true, type: true, is_free_preview: true },
           },
         },
       },
@@ -39,4 +35,17 @@ const getCourseById = async (id) => {
   });
 };
 
-module.exports = { createCourse, getAllCourses, getCourseById };
+const updateCourse = async (id, updateData) => {
+  return await prisma.course.update({
+    where: { id },
+    data: updateData,
+  });
+};
+
+const deleteCourse = async (id) => {
+  return await prisma.course.delete({ where: { id } });
+};
+
+module.exports = { 
+  createCourse, findCourses, findCourseById, updateCourse, deleteCourse 
+};

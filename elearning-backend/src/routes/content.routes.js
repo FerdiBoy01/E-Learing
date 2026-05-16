@@ -1,55 +1,31 @@
 const express = require('express');
 const contentController = require('../controllers/content.controller');
-const validate = require('../middlewares/validate');
-const { createChapterSchema, createMaterialSchema } = require('../validations/content.validation');
 const { protect, restrictTo } = require('../middlewares/auth.middleware');
 
 const router = express.Router();
 
-// 1. Wajib login dulu
+// Semua rute konten wajib login (Mahasiswa & Dosen boleh masuk gerbang awal)
 router.use(protect);
 
-// 2. Endpoint ini BEBAS diakses Mahasiswa maupun Dosen
+// 🔥 Kita bikin variabel gembok khusus buat aksi "Edit/Tambah/Hapus"
+const onlyInstructor = restrictTo('LECTURER', 'CREATOR', 'ADMIN');
+
+// ==========================================
+// URUSAN BAB (CHAPTER) - Cuma Instruktur yang boleh ngutak-ngatik
+// ==========================================
+router.post('/courses/:courseId/chapters', onlyInstructor, contentController.createChapter);
+router.put('/chapters/:chapterId', onlyInstructor, contentController.updateChapter);
+router.delete('/chapters/:chapterId', onlyInstructor, contentController.deleteChapter);
+
+// ==========================================
+// URUSAN MATERI (MATERIAL)
+// ==========================================
+router.post('/chapters/:chapterId/materials', onlyInstructor, contentController.createMaterial);
+
+// ✅ NAH INI DIA KUNCINYA: GET Material DIBUKA buat semua yang udah login (termasuk Student)
 router.get('/materials/:materialId', contentController.getMaterial);
 
-// 3. Pembatas: Semua route di Bawah ini HANYA untuk DOSEN
-router.use(restrictTo('LECTURER'));
+router.put('/materials/:materialId', onlyInstructor, contentController.updateMaterial);
+router.delete('/materials/:materialId', onlyInstructor, contentController.deleteMaterial);
 
-// --- CREATE (TAMBAH) ---
-router.post(
-  '/courses/:courseId/chapters',
-  validate(createChapterSchema),
-  contentController.createChapter
-);
-
-router.post(
-  '/chapters/:chapterId/materials',
-  validate(createMaterialSchema),
-  contentController.createMaterial
-);
-
-// --- UPDATE (EDIT) ---
-// 👇 INI YANG BIKIN 404 TADI KARENA SALAH NARUH
-router.put(
-  '/chapters/:chapterId', 
-  contentController.updateChapter
-);
-
-// --- DELETE (HAPUS) ---
-router.delete(
-  '/chapters/:chapterId', 
-  contentController.deleteChapter
-);
-
-router.delete(
-  '/materials/:materialId', 
-  contentController.deleteMaterial
-);
-
-router.put(
-  '/materials/:materialId', 
-  contentController.updateMaterial
-);
-
-// PASTIKAN MODULE.EXPORTS ADA DI PALING BAWAH!!
 module.exports = router;

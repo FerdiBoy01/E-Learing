@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { 
   ChevronLeft, Save, BookOpen, Code, HelpCircle, FileText, 
@@ -9,8 +9,9 @@ import 'react-quill-new/dist/quill.snow.css';
 import api from '../../config/axios';
 import toast from '../../utils/toast';
 
-const CreateMaterialLecturer = () => {
-  const { courseId, chapterId } = useParams();
+const EditMaterialLecturer = () => {
+  // Asumsi rute frontend lu: /courses/:courseId/chapters/:chapterId/materials/:materialId/edit
+  const { courseId, chapterId, materialId } = useParams();
   const navigate = useNavigate();
 
   // State Form
@@ -20,9 +21,32 @@ const CreateMaterialLecturer = () => {
   const [content, setContent] = useState('');
   
   // State Loading
+  const [initialLoading, setInitialLoading] = useState(true);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const fileInputRef = useRef(null);
+
+  // NARIK DATA LAMA
+  useEffect(() => {
+    const fetchMaterialDetail = async () => {
+      try {
+        const response = await api.get(`/content/materials/${materialId}`);
+        const data = response.data.data.material;
+        
+        setMatTitle(data.title);
+        setMatType(data.type);
+        setMatOrder(data.order_index || 1);
+        setContent(data.content || '');
+      } catch (error) {
+        toast.error('Gagal mengambil data materi. Pastikan materi masih ada.');
+        navigate(`/courses/${courseId}`);
+      } finally {
+        setInitialLoading(false);
+      }
+    };
+
+    if (materialId) fetchMaterialDetail();
+  }, [materialId, courseId, navigate]);
 
   // KONFIGURASI TOOLBAR QUILL
   const quillModules = {
@@ -68,7 +92,6 @@ const CreateMaterialLecturer = () => {
       
     } catch (error) {
       toast.error('Gagal mengunggah gambar. Pastikan server API menyala.');
-      console.error(error);
     } finally {
       setUploadingImage(false);
       e.target.value = null; 
@@ -79,47 +102,52 @@ const CreateMaterialLecturer = () => {
     setContent((prev) => prev + template);
   };
 
-  const handleSaveMaterial = async (e) => {
+  // UPDATE KE BACKEND
+  const handleUpdateMaterial = async (e) => {
     e.preventDefault();
     setSubmitLoading(true);
 
     try {
-      await api.post(`/content/chapters/${chapterId}/materials`, {
+      await api.put(`/content/materials/${materialId}`, {
         title: matTitle,
         type: matType,
         content: matType === 'CHALLENGE' ? '' : content,
         order_index: parseInt(matOrder)
       });
       
-      toast.success('Materi berhasil disimpan!');
+      toast.success('Perubahan materi berhasil disimpan!');
       navigate(`/courses/${courseId}`);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Gagal menyimpan materi');
+      toast.error(err.response?.data?.message || 'Gagal menyimpan perubahan');
     } finally {
       setSubmitLoading(false);
     }
   };
 
+  if (initialLoading) {
+    return <div className="min-h-screen flex flex-col gap-3 justify-center items-center"><span className="loading loading-spinner loading-lg text-slate-900"></span><p className="font-bold text-slate-500">Membaca materi...</p></div>;
+  }
+
   return (
-    <div className="max-w-[1400px] mx-auto pb-20 font-sans px-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="max-w-[1400px] mx-auto pb-20 font-sans px-4 animate-in fade-in duration-500">
       
-      {/* NAVBAR ATAS (Studio Theme) */}
+      {/* NAVBAR ATAS */}
       <div className="flex items-center justify-between mb-8 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm sticky top-6 z-50 mt-6 backdrop-blur-md bg-white/90">
         <div className="flex items-center gap-4">
           <Link to={`/courses/${courseId}`} className="btn btn-sm btn-ghost text-slate-500 hover:bg-slate-100 hover:text-slate-900 rounded-xl">
-            <ChevronLeft size={20} /> Kembali
+            <ChevronLeft size={20} /> Batal Edit
           </Link>
           <div className="h-6 w-px bg-slate-200"></div>
           <h1 className="font-extrabold text-slate-900 flex items-center gap-2">
-            <BookOpen size={18} className="text-slate-900" /> NusaLearn Studio
+            <FileText size={18} className="text-slate-900" /> Mode Edit Materi
           </h1>
         </div>
         <button 
-          onClick={handleSaveMaterial} 
+          onClick={handleUpdateMaterial} 
           disabled={submitLoading || !matTitle}
           className="btn btn-sm bg-slate-900 hover:bg-slate-800 text-white border-none rounded-xl px-6 shadow-md transition-all disabled:bg-slate-300 disabled:text-slate-500 font-bold"
         >
-          {submitLoading ? <span className="loading loading-spinner"></span> : <><Save size={16} /> Simpan Materi</>}
+          {submitLoading ? <span className="loading loading-spinner"></span> : <><Save size={16} /> Update Materi</>}
         </button>
       </div>
 
@@ -146,7 +174,7 @@ const CreateMaterialLecturer = () => {
                 <input type="radio" name="mat_type" className="radio radio-error radio-sm mt-1" checked={matType === 'CHALLENGE'} onChange={() => setMatType('CHALLENGE')} />
                 <div>
                   <span className={`block font-bold mb-0.5 ${matType === 'CHALLENGE' ? 'text-rose-800' : 'text-slate-700'}`}>Tugas Praktik</span>
-                  <span className="text-xs text-slate-500 font-medium leading-relaxed block">Mahasiswa wajib mengumpulkan link repository GitHub/Drive.</span>
+                  <span className="text-xs text-slate-500 font-medium leading-relaxed block">Mahasiswa wajib mengumpulkan link repository GitHub.</span>
                 </div>
               </label>
 
@@ -168,7 +196,6 @@ const CreateMaterialLecturer = () => {
           {/* MAGIC TOOLS */}
           {(matType === 'LESSON' || matType === 'QUIZ') && (
             <div className="bg-slate-900 p-6 rounded-[2rem] border border-slate-800 shadow-xl relative overflow-hidden">
-              {/* Ornamen Latar Magic Tools */}
               <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none"><Sparkles size={100} className="text-white transform rotate-12"/></div>
               
               <h3 className="font-bold text-white mb-2 flex items-center gap-2 relative z-10">
@@ -214,7 +241,7 @@ const CreateMaterialLecturer = () => {
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-4">
                   <label className="flex items-center gap-2 font-bold text-slate-600 text-sm">
                     <FileText size={16} /> 
-                    {matType === 'LESSON' ? 'Tuliskan Teori, Langkah, & Kode' : 'Tuliskan Instruksi Kuis'}
+                    {matType === 'LESSON' ? 'Edit Teori, Langkah, & Kode' : 'Edit Instruksi Kuis'}
                   </label>
 
                   <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -300,7 +327,6 @@ const CreateMaterialLecturer = () => {
                   }
                 `}</style>
 
-                {/* Wadah Editor */}
                 <div className="flex-1 flex flex-col focus-within:ring-4 focus-within:ring-slate-100 transition-all rounded-2xl">
                   <ReactQuill 
                     theme="snow"
@@ -334,4 +360,4 @@ const CreateMaterialLecturer = () => {
   );
 };
 
-export default CreateMaterialLecturer;
+export default EditMaterialLecturer;

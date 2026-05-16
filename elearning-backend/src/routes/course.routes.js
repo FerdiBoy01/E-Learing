@@ -9,32 +9,37 @@ const router = express.Router();
 // Semua rute course di bawah ini wajib login
 router.use(protect);
 
-// GET: Bisa diakses oleh Mahasiswa (STUDENT) dan Dosen (LECTURER)
+// ==========================================
+// RUTE GLOBAL (Semua Role)
+// ==========================================
+// GET: Bisa diakses oleh STUDENT, LECTURER, CREATOR, ADMIN
 router.get('/', courseController.getAllCourses);
 router.get('/:id', courseController.getCourseById);
-// Taruh di bawah router.get('/:id', ...)
+
+// ==========================================
+// RUTE KHUSUS MAHASISWA (STUDENT)
+// ==========================================
+// (Route untuk enroll/masuk kelas sudah pindah ke enrollment.routes.js)
 router.get('/:id/enroll-status', restrictTo('STUDENT'), courseController.checkEnrollmentStatus);
-router.post('/:id/enroll', restrictTo('STUDENT'), courseController.enrollCourse);
 router.post('/:id/claim-reward', restrictTo('STUDENT'), courseController.claimReward);
 
-// ----------------------------------------------------
-// PEMBATAS: Rute di bawah ini HANYA untuk Dosen
-// ----------------------------------------------------
-router.use(restrictTo('LECTURER'));
+// ==========================================
+// RUTE KHUSUS PENGAJAR (LECTURER, CREATOR, ADMIN)
+// ==========================================
+// Pembatas: Rute di bawah ini HANYA untuk role yang bisa mengelola kelas
+router.use(restrictTo('LECTURER', 'CREATOR', 'ADMIN'));
 
 // POST: Membuat kelas baru
 router.post(
   '/',
-  validate(createCourseSchema),
+  validate(createCourseSchema), // Pastikan skema validasi lo udah update kalau ada kolom baru
   courseController.createCourse
 );
 
-// PUT: Update kelas (Edit Data & Aktif/Nonaktif)
+// PUT: Update kelas (Edit Data, Harga, Visibility, Publish)
 router.put('/:id', courseController.updateCourse);
 
 // DELETE: Hapus kelas permanen
 router.delete('/:id', courseController.deleteCourse);
-
-
 
 module.exports = router;

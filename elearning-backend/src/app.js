@@ -17,7 +17,10 @@ const progressRoutes = require('./routes/progress.routes');
 const submissionRoutes = require('./routes/submission.routes');
 const dashboardRoutes = require('./routes/dashboard.routes');
 const uploadRoutes = require('./routes/upload.routes');
-const userRoutes = require('./routes/user.routes'); // 🔥 PASTIKAN IMPORT INI ADA
+const userRoutes = require('./routes/user.routes'); 
+const transactionRoutes = require('./routes/transaction.routes');
+// 🔥 IMPORT ROUTE ENROLLMENT BARU KITA
+const enrollmentRoutes = require('./routes/enrollment.routes'); 
 
 const app = express();
 
@@ -25,7 +28,7 @@ app.use(helmet({
   crossOriginResourcePolicy: false, 
 })); 
 app.use(cors());
-app.use(express.json({ limit: '10kb' }));
+app.use(express.json({ limit: '10mb' }));
 
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
@@ -44,7 +47,10 @@ app.use('/api/progress', progressRoutes);
 app.use('/api/submissions', submissionRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/upload', uploadRoutes); 
-app.use('/api/users', userRoutes); // 🔥 INI POSISINYA HARUS DI SINI
+app.use('/api/users', userRoutes); 
+app.use('/api/transactions', transactionRoutes);
+// 🔥 DAFTARKAN ENDPOINT ENROLLMENT DI SINI
+app.use('/api/enrollments', enrollmentRoutes); 
 
 // ==============================================
 // 🚨 404 ERROR HANDLER (HARUS DI PALING BAWAH)

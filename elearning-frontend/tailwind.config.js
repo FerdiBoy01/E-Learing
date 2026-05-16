@@ -11,7 +11,10 @@ export default {
       }
     },
   },
-  plugins: [require("daisyui")],
+  plugins: [
+    require('@tailwindcss/typography'), // 🔥 PLUGIN TYPOGRAPHY DITAMBAHKAN DI SINI
+    require("daisyui")
+  ],
   daisyui: {
     themes: ["corporate", "business"], // Corporate untuk light mode, Business untuk dark mode
     darkTheme: "business",

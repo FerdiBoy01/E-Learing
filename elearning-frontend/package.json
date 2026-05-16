@@ -12,12 +12,14 @@
   "dependencies": {
     "@uiw/react-md-editor": "^4.1.0",
     "axios": "^1.16.0",
+    "canvas-confetti": "^1.9.4",
     "daisyui": "^5.5.19",
     "lucide-react": "^1.14.0",
     "multer": "^2.1.1",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-markdown": "^10.1.0",
+    "react-quill-new": "^3.8.3",
     "react-router-dom": "^7.15.0",
     "react-syntax-highlighter": "^16.1.1",
     "remark-gfm": "^4.0.1",
@@ -25,6 +27,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@tailwindcss/typography": "^0.5.19",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",

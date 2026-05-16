@@ -1,27 +1,52 @@
 const contentRepository = require('../repositories/content.repository');
-const courseRepository = require('../repositories/course.repository'); // Import dari repo course sebelumnya
+const courseRepository = require('../repositories/course.repository');
 const AppError = require('../utils/AppError');
 
-const addChapterToCourse = async (courseId, chapterData) => {
-  // 1. Validasi apakah course-nya ada
-  const course = await courseRepository.getCourseById(courseId);
-  if (!course) {
-    throw new AppError('Mata kuliah tidak ditemukan', 404);
-  }
+const addChapterToCourse = async (courseId, data) => {
+  // 🔥 Manggil fungsi baru dari course.repository.js
+  const course = await courseRepository.findCourseById(courseId);
+  if (!course) throw new AppError('Kelas tidak ditemukan', 404);
 
-  // 2. Buat chapter
-  return await contentRepository.createChapter(courseId, chapterData);
+  return await contentRepository.createChapter(courseId, data);
 };
 
-const addMaterialToChapter = async (chapterId, materialData) => {
-  // 1. Validasi apakah chapter-nya ada
+const editChapter = async (chapterId, data) => {
   const chapter = await contentRepository.findChapterById(chapterId);
-  if (!chapter) {
-    throw new AppError('Bab tidak ditemukan', 404);
-  }
-
-  // 2. Buat material
-  return await contentRepository.createMaterial(chapterId, materialData);
+  if (!chapter) throw new AppError('Bab tidak ditemukan', 404);
+  return await contentRepository.updateChapter(chapterId, data);
 };
 
-module.exports = { addChapterToCourse, addMaterialToChapter };
+const removeChapter = async (chapterId) => {
+  const chapter = await contentRepository.findChapterById(chapterId);
+  if (!chapter) throw new AppError('Bab tidak ditemukan', 404);
+  await contentRepository.deleteChapter(chapterId);
+};
+
+const addMaterialToChapter = async (chapterId, data) => {
+  const chapter = await contentRepository.findChapterById(chapterId);
+  if (!chapter) throw new AppError('Bab tidak ditemukan', 404);
+  return await contentRepository.createMaterial(chapterId, data);
+};
+
+const getMaterialDetail = async (materialId) => {
+  const material = await contentRepository.findMaterialById(materialId);
+  if (!material) throw new AppError('Materi tidak ditemukan', 404);
+  return material;
+};
+
+const editMaterial = async (materialId, data) => {
+  const material = await contentRepository.findMaterialById(materialId);
+  if (!material) throw new AppError('Materi tidak ditemukan', 404);
+  return await contentRepository.updateMaterial(materialId, data);
+};
+
+const removeMaterial = async (materialId) => {
+  const material = await contentRepository.findMaterialById(materialId);
+  if (!material) throw new AppError('Materi tidak ditemukan', 404);
+  await contentRepository.deleteMaterial(materialId);
+};
+
+module.exports = { 
+  addChapterToCourse, editChapter, removeChapter, 
+  addMaterialToChapter, getMaterialDetail, editMaterial, removeMaterial 
+};

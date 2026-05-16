@@ -1,36 +1,42 @@
-import { useEffect, useState, useRef } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
-import { 
-  ChevronLeft, ChevronRight, CheckCircle, Code as CodeIcon, 
-  HelpCircle, FileText, Send, Image as ImageIcon, X, Clock, BookOpen, Share2, Lock 
-} from 'lucide-react'; // 🔥 SEMUA ICON SUDAH MASUK DAFTAR
-
-import api from '../../config/axios';
-
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'; 
+import { useEffect, useState, useRef } from "react";
+import { useParams, Link, useNavigate } from "react-router-dom";
+import {
+  ChevronLeft,
+  ChevronRight,
+  CheckCircle,
+  Code as CodeIcon,
+  HelpCircle,
+  FileText,
+  Image as ImageIcon,
+  X,
+  Clock,
+  BookOpen,
+  Share2,
+  Sparkles,
+} from "lucide-react";
+import confetti from "canvas-confetti";
+import api from "../../config/axios";
+import toast from "../../utils/toast";
 
 const MaterialDetail = () => {
   const { materialId } = useParams();
   const navigate = useNavigate();
-  
+
   const [material, setMaterial] = useState(null);
   const [courseDetails, setCourseDetails] = useState(null);
-  const [courseIdStr, setCourseIdStr] = useState(''); 
+  const [courseIdStr, setCourseIdStr] = useState("");
   const [isCompleted, setIsCompleted] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const [submissionLink, setSubmissionLink] = useState('');
-  const [submissionImage, setSubmissionImage] = useState('');
+  const [submissionLink, setSubmissionLink] = useState("");
+  const [submissionImage, setSubmissionImage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
-  
+
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }, [materialId]);
 
   useEffect(() => {
@@ -41,7 +47,11 @@ const MaterialDetail = () => {
         const matData = resMat.data.data.material;
         setMaterial(matData);
 
-        const cId = matData.chapter?.courseId || matData.chapter?.course_id || matData.course_id || localStorage.getItem('activeCourseId');
+        const cId =
+          matData.chapter?.courseId ||
+          matData.chapter?.course_id ||
+          matData.course_id ||
+          localStorage.getItem("activeCourseId");
         setCourseIdStr(cId);
 
         if (cId) {
@@ -49,13 +59,17 @@ const MaterialDetail = () => {
           setCourseDetails(resCourse.data.data.course);
         }
 
-        const resProg = await api.get('/progress/me');
+        const resProg = await api.get("/progress/me");
         const myProgress = resProg.data.data.progress;
-        const isDone = myProgress.some(p => p.material_id === materialId || p.materialId === materialId);
+        const isDone = myProgress.some(
+          (p) => p.material_id === materialId || p.materialId === materialId,
+        );
         setIsCompleted(isDone);
-
       } catch (error) {
         console.error("Gagal mengambil data", error);
+        toast.error(
+          "Gagal memuat materi. Pastikan kamu sudah mendaftar kelas ini.",
+        );
       } finally {
         setLoading(false);
       }
@@ -63,55 +77,70 @@ const MaterialDetail = () => {
     fetchData();
   }, [materialId]);
 
+  // LOGIKA NAVIGASI PREV / NEXT
   let prevMaterialId = null;
   let nextMaterialId = null;
-  
+  let currentIndex = 0;
+  let totalMaterials = 0;
+
   if (courseDetails) {
-    const allMaterials = courseDetails.chapters.flatMap(ch => ch.materials);
-    const currentIndex = allMaterials.findIndex(m => m.id === materialId);
-    
+    const allMaterials = courseDetails.chapters.flatMap((ch) => ch.materials);
+    totalMaterials = allMaterials.length;
+    currentIndex = allMaterials.findIndex((m) => m.id === materialId);
+
     if (currentIndex > 0) prevMaterialId = allMaterials[currentIndex - 1].id;
-    if (currentIndex !== -1 && currentIndex < allMaterials.length - 1) nextMaterialId = allMaterials[currentIndex + 1].id;
+    if (currentIndex !== -1 && currentIndex < allMaterials.length - 1)
+      nextMaterialId = allMaterials[currentIndex + 1].id;
   }
 
   const handleMarkComplete = async () => {
     try {
       await api.post(`/progress/materials/${materialId}/complete`);
       setIsCompleted(true);
+      toast.success("Mantap! Materi selesai dipelajari.");
     } catch (error) {
-      alert("Gagal menandai selesai");
+      toast.error("Gagal menandai selesai. Coba lagi.");
     }
   };
 
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) return alert("Ukuran gambar maksimal 2MB ya coy!");
+    if (file.size > 2 * 1024 * 1024)
+      return toast.error("Ukuran gambar maksimal 2MB ya coy!");
 
     const formData = new FormData();
-    formData.append('image', file);
+    formData.append("image", file);
 
     try {
       setIsUploadingImage(true);
-      const res = await api.post('/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const res = await api.post("/upload", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
       setSubmissionImage(res.data.url);
+      toast.success("Bukti screenshot berhasil diunggah!");
     } catch (error) {
-      alert('Gagal mengunggah gambar bukti.');
+      toast.error("Gagal mengunggah gambar bukti. Pastikan server nyala.");
     } finally {
       setIsUploadingImage(false);
-      e.target.value = null; 
+      e.target.value = null;
     }
   };
 
   const handleSubmitChallenge = async () => {
-    if (!submissionLink) return alert("Tautan repository wajib diisi!");
+    if (!submissionLink)
+      return toast.error("Tautan repository/drive wajib diisi!");
     setIsSubmitting(true);
     try {
-      await api.post(`/submissions/materials/${materialId}`, { submission_url: submissionLink, image_url: submissionImage });
+      await api.post(`/submissions/materials/${materialId}`, {
+        submission_url: submissionLink,
+        image_url: submissionImage,
+      });
       await api.post(`/progress/materials/${materialId}/complete`);
       setIsCompleted(true);
+      toast.success("Misi berhasil diselesaikan! Tugas sudah dikirim.");
     } catch (error) {
-      alert(error.response?.data?.message || "Gagal mengirim tugas.");
+      toast.error(error.response?.data?.message || "Gagal mengirim tugas.");
     } finally {
       setIsSubmitting(false);
     }
@@ -119,236 +148,372 @@ const MaterialDetail = () => {
 
   const getMaterialIcon = (type) => {
     switch (type) {
-      case 'LESSON': return <FileText size={20} className="text-blue-500" />;
-      case 'QUIZ': return <HelpCircle size={20} className="text-amber-500" />;
-      case 'CHALLENGE': return <CodeIcon size={20} className="text-indigo-500" />;
-      default: return <FileText size={20} className="text-slate-500" />;
+      case "LESSON":
+        return <FileText size={16} className="text-blue-500" />;
+      case "QUIZ":
+        return <HelpCircle size={16} className="text-amber-500" />;
+      case "CHALLENGE":
+        return <CodeIcon size={16} className="text-indigo-500" />;
+      default:
+        return <FileText size={16} className="text-slate-500" />;
     }
   };
 
   const getTypeStyle = (type) => {
     switch (type) {
-      case 'LESSON': return 'bg-blue-50 text-blue-600 border-blue-100';
-      case 'QUIZ': return 'bg-amber-50 text-amber-600 border-amber-100';
-      case 'CHALLENGE': return 'bg-indigo-50 text-indigo-600 border-indigo-100';
-      default: return 'bg-slate-50 text-slate-600 border-slate-100';
+      case "LESSON":
+        return "bg-blue-50 text-blue-700 border-blue-200";
+      case "QUIZ":
+        return "bg-amber-50 text-amber-700 border-amber-200";
+      case "CHALLENGE":
+        return "bg-indigo-50 text-indigo-700 border-indigo-200";
+      default:
+        return "bg-slate-50 text-slate-700 border-slate-200";
     }
   };
 
-  if (loading) return <div className="min-h-screen flex justify-center items-center bg-slate-50"><span className="loading loading-spinner loading-lg text-blue-600"></span></div>;
+  if (loading)
+    return (
+      <div className="min-h-screen flex justify-center items-center bg-slate-50">
+        <span className="loading loading-spinner loading-lg text-slate-900"></span>
+      </div>
+    );
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans pb-24 selection:bg-blue-100 relative">
-      
-      {/* 🔥 NAVIGASI FIXED: ANTI TEMBUS & Z-INDEX MAKSIMAL */}
-      <nav className="sticky top-0 z-[110] h-16 w-full bg-white px-4 md:px-8 border-b border-slate-200 shadow-sm flex items-center justify-between">
-        <div className="flex items-center gap-4 relative z-10">
-          <Link to={`/courses/${courseIdStr}`} className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-600">
-            <ChevronLeft size={24} strokeWidth={2.5} />
+    <div className="min-h-screen bg-slate-50 font-sans pb-24 selection:bg-blue-200 relative">
+      {/* 1. STICKY TOP NAVBAR (Workspace Premium) */}
+      <nav className="sticky top-0 z-[110] h-16 w-full bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm flex items-center justify-between px-4 md:px-8 transition-all">
+        <div className="flex items-center gap-4">
+          <Link
+            to={`/courses/${courseIdStr}`}
+            className="p-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors text-slate-600"
+          >
+            <ChevronLeft size={18} strokeWidth={2.5} />
           </Link>
+          <div className="hidden sm:block border-l border-slate-200 h-8 mx-1"></div>
           <div className="hidden md:block overflow-hidden">
-            <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest leading-none mb-1">
-              {courseDetails?.title || 'E-Learning'}
-            </p>
-            <p className="text-sm font-bold text-slate-800 truncate max-w-[250px] leading-tight">
+            <div className="flex items-center gap-2 mb-0.5">
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
+                {courseDetails?.title || "Kelas"}
+              </p>
+              <span className="text-[9px] font-black bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                Materi {currentIndex + 1} / {totalMaterials}
+              </span>
+            </div>
+            <p className="text-sm font-extrabold text-slate-900 truncate max-w-[300px] leading-tight">
               {material?.title}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 relative z-10">
+        <div className="flex items-center gap-3">
           {isCompleted && (
-            <span className="bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-full text-[10px] font-black uppercase flex items-center gap-1.5 border border-emerald-100">
-              <CheckCircle size={14} strokeWidth={3} /> Selesai
-            </span>
+            <div className="bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 border border-emerald-100 shadow-sm">
+              <CheckCircle size={14} /> Selesai
+            </div>
           )}
-          <button className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-400 group">
-            <Share2 size={20} className="group-hover:text-blue-500 transition-colors" />
+          <button className="p-2.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-all text-slate-500 hover:text-slate-900 shadow-sm">
+            <Share2 size={16} />
           </button>
         </div>
       </nav>
 
-      <div className="max-w-4xl mx-auto pt-10 px-4 relative z-10">
-        <header className="mb-10 animate-in slide-in-from-top duration-500">
-          <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest mb-6 shadow-sm border ${getTypeStyle(material?.type)}`}>
-            {getMaterialIcon(material?.type)} {material?.type}
+      <div className="max-w-4xl mx-auto pt-10 px-4 sm:px-6 flex flex-col w-full overflow-x-hidden relative z-10">
+        {/* HEADER SECTION */}
+        <header className="mb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest mb-5 border shadow-sm ${getTypeStyle(material?.type)}`}
+          >
+            {getMaterialIcon(material?.type)}{" "}
+            {material?.type === "LESSON"
+              ? "Materi Bacaan"
+              : material?.type === "CHALLENGE"
+                ? "Tugas Praktik"
+                : "Instruksi Kuis"}
           </div>
-          <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 leading-[1.2] tracking-tight mb-4">
+          <h1 className="text-3xl md:text-5xl font-black text-slate-900 leading-[1.15] tracking-tight mb-6 break-words">
             {material?.title}
           </h1>
-          <div className="flex items-center gap-5 text-slate-400 text-[10px] font-black uppercase tracking-widest">
-            <div className="flex items-center gap-1.5"><Clock size={16} className="text-blue-400" /> 15 Menit</div>
-            <div className="flex items-center gap-1.5"><BookOpen size={16} className="text-indigo-400" /> {courseDetails?.chapters?.length} Bab</div>
+          <div className="flex items-center gap-5 text-slate-500 text-[10px] font-black uppercase tracking-[0.15em]">
+            <div className="flex items-center gap-1.5">
+              <Clock size={14} className="text-slate-400" /> Estimasi 15 Menit
+            </div>
+            <div className="w-1 h-1 bg-slate-300 rounded-full"></div>
+            <div className="flex items-center gap-1.5">
+              <BookOpen size={14} className="text-slate-400" />{" "}
+              {courseDetails?.chapters?.length || 0} Bab
+            </div>
           </div>
         </header>
 
-        <div className="bg-white rounded-[2.5rem] p-6 sm:p-10 md:p-14 border border-slate-200 shadow-xl shadow-slate-200/40 relative overflow-hidden">
-          <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.03] bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
-          
-          <div className="relative z-10 prose prose-slate max-w-none">
-            {material?.type === 'CHALLENGE' ? (
-              <div className="text-center py-6 animate-in fade-in duration-700">
-                <div className="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-sm border border-indigo-100">
-                  <CodeIcon size={40} strokeWidth={2} />
+        {/* MAIN CONTENT CARD */}
+        <div className="bg-white rounded-[2rem] p-6 sm:p-10 md:p-14 border border-slate-200 shadow-sm relative overflow-hidden w-full max-w-full mb-10">
+          <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.02] bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:32px_32px]"></div>
+
+          <div className="relative z-10 w-full">
+            {/* TAMPILAN JIKA TUGAS PRAKTIK (CHALLENGE) */}
+            {material?.type === "CHALLENGE" ? (
+              <div className="text-center py-6 animate-in fade-in zoom-in-95 duration-500 w-full">
+                <div className="w-20 h-20 bg-slate-900 text-white rounded-[1.5rem] flex items-center justify-center mx-auto mb-6 shadow-xl shadow-slate-900/20 border border-slate-700">
+                  <CodeIcon size={36} strokeWidth={2} />
                 </div>
-                <h2 className="text-3xl font-bold text-slate-900 mb-4 tracking-tight uppercase">Misi Tantangan ⚔️</h2>
-                <p className="text-lg text-slate-500 max-w-xl mx-auto mb-12 font-medium leading-relaxed">
-                  Terapkan ilmu yang udah lo dapet. Kumpulkan tautan repo dan bukti screenshot biar dosen bisa kasih nilai maksimal!
+                <h2 className="text-2xl sm:text-3xl font-black text-slate-900 mb-4 tracking-tight">
+                  Misi Praktik ⚔️
+                </h2>
+                <p className="text-sm sm:text-base text-slate-500 max-w-lg mx-auto mb-10 font-medium leading-relaxed">
+                  Buktikan kemampuanmu. Kerjakan tantangan yang diberikan dan
+                  kumpulkan bukti *repository* GitHub serta *screenshot*
+                  hasilnya di bawah ini.
                 </p>
 
-                <div className="max-w-lg mx-auto bg-slate-50 p-8 rounded-[2.5rem] border border-slate-200 text-left shadow-inner">
-                  <div className="space-y-8">
+                <div className="max-w-md mx-auto bg-slate-50 p-6 sm:p-8 rounded-[2rem] border border-slate-200 text-left shadow-sm">
+                  <div className="space-y-6">
                     <div>
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3">Screenshot Bukti</label>
+                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2.5">
+                        1. Bukti Screenshot Aplikasi
+                      </label>
                       {submissionImage ? (
-                        <div className="relative rounded-2xl overflow-hidden border-2 border-slate-200 group bg-white shadow-md">
-                          <img src={submissionImage} alt="Bukti" className="w-full h-auto" />
+                        <div className="relative rounded-2xl overflow-hidden border border-slate-200 group bg-white shadow-sm">
+                          <img
+                            src={submissionImage}
+                            alt="Bukti"
+                            className="w-full h-auto object-cover"
+                          />
                           {!isCompleted && (
-                            <button onClick={() => setSubmissionImage('')} className="absolute top-3 right-3 bg-rose-500 text-white p-2.5 rounded-xl shadow-lg hover:bg-rose-600 transition-all hover:scale-110"><X size={18} strokeWidth={3} /></button>
+                            <button
+                              onClick={() => setSubmissionImage("")}
+                              className="absolute top-3 right-3 bg-slate-900/80 backdrop-blur text-white p-2 rounded-xl shadow-lg hover:bg-rose-500 transition-colors"
+                            >
+                              <X size={16} strokeWidth={3} />
+                            </button>
                           )}
                         </div>
                       ) : (
                         <button
                           onClick={() => fileInputRef.current.click()}
                           disabled={isUploadingImage || isCompleted}
-                          className="w-full aspect-video border-2 border-dashed border-slate-300 rounded-3xl flex flex-col items-center justify-center gap-4 bg-white hover:bg-blue-50 hover:border-blue-300 transition-all group"
+                          className="w-full aspect-video border-2 border-dashed border-slate-300 rounded-2xl flex flex-col items-center justify-center gap-3 bg-white hover:bg-slate-100 transition-colors group"
                         >
-                          {isUploadingImage ? <span className="loading loading-spinner text-blue-600"></span> : <ImageIcon size={36} className="text-slate-300 group-hover:text-blue-500 transition-colors" />}
-                          <span className="text-sm font-bold text-slate-400 group-hover:text-blue-600">Upload Screenshot</span>
+                          {isUploadingImage ? (
+                            <span className="loading loading-spinner text-slate-900"></span>
+                          ) : (
+                            <ImageIcon
+                              size={32}
+                              className="text-slate-300 group-hover:text-slate-600 transition-colors"
+                            />
+                          )}
+                          <span className="text-xs font-bold text-slate-400 group-hover:text-slate-600 uppercase tracking-wider">
+                            Unggah Bukti Gambar
+                          </span>
                         </button>
                       )}
-                      <input type="file" accept="image/*" ref={fileInputRef} className="hidden" onChange={handleImageUpload} />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        ref={fileInputRef}
+                        className="hidden"
+                        onChange={handleImageUpload}
+                      />
                     </div>
 
                     <div>
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3 flex justify-between">
-                        Tautan Repository <span className="text-blue-600 bg-blue-50 px-1.5 rounded font-black">*Wajib</span>
+                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2.5 flex justify-between">
+                        2. Tautan Repository / Drive{" "}
+                        <span className="text-rose-500">*Wajib</span>
                       </label>
-                      <input 
-                        type="url" value={submissionLink} onChange={(e) => setSubmissionLink(e.target.value)}
+                      <input
+                        type="url"
+                        value={submissionLink}
+                        onChange={(e) => setSubmissionLink(e.target.value)}
                         disabled={isCompleted || isSubmitting}
-                        placeholder="https://github.com/lo/project" 
-                        className="w-full px-5 py-4 rounded-2xl border border-slate-200 bg-white focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all font-bold text-slate-700 placeholder-slate-300"
+                        placeholder="https://github.com/username/project-kamu"
+                        className="w-full px-4 py-3.5 rounded-xl border border-slate-200 bg-white focus:border-slate-900 outline-none transition-all font-bold text-sm text-slate-800 placeholder-slate-300 shadow-sm"
                       />
                     </div>
 
                     {!isCompleted ? (
-                      <button 
-                        onClick={handleSubmitChallenge} disabled={isSubmitting || !submissionLink}
-                        className="w-full btn bg-blue-600 hover:bg-blue-700 text-white border-none rounded-2xl h-14 font-black uppercase tracking-widest shadow-lg shadow-blue-200 transition-all flex items-center gap-3"
+                      <button
+                        onClick={handleSubmitChallenge}
+                        disabled={isSubmitting || !submissionLink}
+                        className="w-full btn bg-slate-900 hover:bg-slate-800 text-white border-none rounded-xl h-12 font-black uppercase tracking-widest shadow-lg shadow-slate-200 transition-all mt-4"
                       >
-                        {isSubmitting ? <span className="loading loading-spinner"></span> : <Send size={20} strokeWidth={2.5} />}
-                        {isSubmitting ? 'Mengirim...' : 'Kumpulkan Tugas'}
+                        {isSubmitting ? (
+                          <span className="loading loading-spinner"></span>
+                        ) : (
+                          <>
+                            <Send size={16} className="mr-1" /> Kirim Tugas
+                            Sekarang
+                          </>
+                        )}
                       </button>
                     ) : (
-                      <div className="w-full bg-emerald-500 text-white font-black uppercase tracking-widest py-4 rounded-2xl flex items-center justify-center gap-3 shadow-lg shadow-emerald-100">
-                        <CheckCircle size={22} strokeWidth={3} /> Misi Selesai
+                      <div className="w-full bg-emerald-50 text-emerald-600 border border-emerald-200 font-black uppercase tracking-widest py-3.5 rounded-xl flex items-center justify-center gap-2 shadow-sm mt-4 text-xs">
+                        <CheckCircle size={18} strokeWidth={2.5} /> Tugas
+                        Berhasil Dikirim
                       </div>
                     )}
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="material-markdown-content animate-in fade-in slide-in-from-bottom-4 duration-700">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  components={{
-                    h1: ({node, ...props}) => <h1 className="text-3xl font-bold text-slate-900 mb-8 mt-12" {...props} />,
-                    h2: ({node, ...props}) => <h2 className="text-2xl font-bold text-slate-800 mb-6 mt-10 flex items-center gap-3 before:content-[''] before:w-1.5 before:h-8 before:bg-blue-500 before:rounded-full" {...props} />,
-                    h3: ({node, ...props}) => <h3 className="text-xl font-bold text-slate-800 mb-4 mt-8" {...props} />,
-                    p: ({node, ...props}) => <p className="text-lg leading-[1.9] text-slate-600 mb-8 font-medium" {...props} />,
-                    li: ({node, ...props}) => (
-                      <li className="text-lg leading-[1.8] text-slate-600 mb-3 flex items-start gap-4">
-                        <span className="mt-2.5 w-2 h-2 shrink-0 bg-blue-400 rounded-full ring-4 ring-blue-50"></span>
-                        <span className="font-medium">{props.children}</span>
-                      </li>
-                    ),
-                    blockquote: ({node, ...props}) => (
-                      <blockquote className="border-l-4 border-blue-500 bg-blue-50/50 p-6 rounded-r-2xl my-10 font-bold italic text-slate-700 shadow-sm" {...props} />
-                    ),
-                    img: ({node, ...props}) => (
-                      <div className="my-12 rounded-3xl overflow-hidden border border-slate-200 shadow-xl">
-                        <img className="w-full h-auto" {...props} alt={props.alt || 'Visual Materi'} />
-                      </div>
-                    ),
-                    code({node, inline, className, children, ...props}) {
-                      const match = /language-(\w+)/.exec(className || '');
-                      const language = match ? match[1] : 'text'; 
-                      if (!inline || String(children).includes('\n')) {
-                        return (
-                          <div className="my-10 rounded-2xl border border-slate-200 overflow-hidden shadow-xl relative group font-mono">
-                            <div className="bg-slate-900 px-5 py-3 flex items-center justify-between border-b border-slate-800">
-                              <div className="flex gap-2">
-                                <div className="w-3 h-3 rounded-full bg-rose-500"></div>
-                                <div className="w-3 h-3 rounded-full bg-amber-500"></div>
-                                <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
-                              </div>
-                              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{language}</span>
-                            </div>
-                            <SyntaxHighlighter
-                              style={vscDarkPlus} language={language === 'text' ? 'html' : language} PreTag="div"
-                              customStyle={{ margin: 0, padding: '1.75rem', fontSize: '0.9rem', lineHeight: '1.8', background: '#0f172a', color: '#f8fafc' }}
-                              {...props}
-                            >
-                              {String(children).replace(/\n$/, '')}
-                            </SyntaxHighlighter>
-                          </div>
-                        );
-                      }
-                      return <code className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md font-black text-sm border border-blue-100 mx-0.5" {...props}>{children}</code>;
-                    }
-                  }}
-                >
-                  {material?.content}
-                </ReactMarkdown>
+              /* TAMPILAN JIKA MATERI TEORI/KUIS (RENDER HTML DARI QUILL) */
+              <div className="material-html-content animate-in fade-in duration-700 w-full overflow-hidden">
+                <style>{`
+                  .material-html-content p, .material-html-content h1, .material-html-content h2, 
+                  .material-html-content h3, .material-html-content span, .material-html-content li {
+                    white-space: normal !important;
+                    word-wrap: break-word !important;
+                    overflow-wrap: break-word !important;
+                    word-break: break-word !important;
+                    max-width: 100% !important;
+                  }
+                  
+                  /* Desain Kode macOS Terminal */
+                  .material-html-content .ql-syntax {
+                    background-color: #0f172a !important; /* slate-900 */
+                    color: #f8fafc !important; 
+                    padding: 3.5rem 1.5rem 1.5rem 1.5rem !important;
+                    border-radius: 1rem !important;
+                    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+                    font-size: 0.85rem !important;
+                    line-height: 1.7 !important;
+                    position: relative !important;
+                    overflow-x: auto !important;
+                    max-width: 100% !important;
+                    margin: 2.5rem 0 !important;
+                    border: 1px solid #1e293b !important;
+                    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1) !important;
+                  }
+                  
+                  .material-html-content .ql-syntax::before {
+                    content: '';
+                    position: absolute;
+                    top: 1.25rem;
+                    left: 1.5rem;
+                    width: 0.75rem;
+                    height: 0.75rem;
+                    border-radius: 999px;
+                    background-color: #ef4444; /* rose-500 */
+                    box-shadow: 1.25rem 0 0 #f59e0b, 2.5rem 0 0 #10b981; /* amber & emerald */
+                  }
+
+                  /* Desain Kotak Info / Peringatan dari Magic Tools Dosen */
+                  .material-html-content blockquote {
+                    border-left: 4px solid #f59e0b !important; /* amber-500 */
+                    background: #fffbeb !important; /* amber-50 */
+                    padding: 1.5rem 1.5rem 1.5rem 2rem !important;
+                    border-radius: 0 1rem 1rem 0 !important;
+                    font-style: normal !important;
+                    color: #475569 !important;
+                    margin: 2.5rem 0 !important;
+                    position: relative;
+                  }
+                  
+                  .material-html-content table {
+                     width: 100% !important;
+                     overflow-x: auto !important;
+                     display: block !important;
+                     border-collapse: collapse !important;
+                     margin: 2rem 0 !important;
+                     border-radius: 0.5rem;
+                     overflow: hidden;
+                  }
+                  .material-html-content th {
+                    background-color: #f8fafc !important;
+                    font-weight: 900 !important;
+                    color: #0f172a !important;
+                  }
+                  .material-html-content th, .material-html-content td {
+                    border: 1px solid #e2e8f0 !important;
+                    padding: 14px 16px !important;
+                  }
+                `}</style>
+
+                <div
+                  className="prose prose-slate max-w-full w-full break-words font-sans
+                             prose-headings:font-black prose-headings:text-slate-900 prose-headings:tracking-tight
+                             prose-p:text-slate-600 prose-p:leading-[1.8] prose-p:font-medium prose-p:text-base sm:prose-p:text-[1.05rem]
+                             prose-img:rounded-2xl prose-img:shadow-xl prose-img:w-full prose-img:border border-slate-100 prose-img:my-10
+                             prose-strong:text-slate-900 prose-strong:font-bold prose-li:text-slate-600 prose-li:font-medium"
+                  dangerouslySetInnerHTML={{ __html: material?.content || "" }}
+                />
               </div>
             )}
           </div>
         </div>
 
-        <footer className="mt-16 flex flex-col sm:flex-row items-center justify-between gap-6 px-4">
+        {/* FOOTER NAVIGATION */}
+        <footer className="flex flex-col sm:flex-row items-center justify-between gap-6 px-2 w-full">
           <div className="w-full sm:w-auto">
             {prevMaterialId && (
-              <Link to={`/materials/${prevMaterialId}`} className="flex items-center gap-4 group text-slate-400 hover:text-blue-600 font-black transition-all">
-                <div className="p-3.5 rounded-2xl bg-white border border-slate-200 group-hover:bg-blue-50 group-hover:border-blue-200 transition-all shadow-sm group-hover:-translate-x-1">
-                  <ChevronLeft size={22} strokeWidth={3} />
+              <Link
+                to={`/materials/${prevMaterialId}`}
+                className="flex items-center gap-3.5 group text-slate-500 hover:text-slate-900 transition-all bg-white sm:bg-transparent p-3 sm:p-0 border border-slate-200 sm:border-transparent rounded-2xl"
+              >
+                <div className="p-2.5 rounded-xl bg-white border border-slate-200 group-hover:border-slate-300 shadow-sm group-hover:-translate-x-1 transition-all">
+                  <ChevronLeft size={20} strokeWidth={3} />
                 </div>
                 <div className="text-left">
-                  <p className="text-[9px] uppercase tracking-[0.2em] opacity-60">Kembali</p>
-                  <p className="text-sm font-bold">Materi Sebelumnya</p>
+                  <p className="text-[9px] uppercase tracking-widest font-black opacity-50 mb-0.5">
+                    Kembali
+                  </p>
+                  <p className="text-xs font-extrabold">Materi Sebelumnya</p>
                 </div>
               </Link>
             )}
           </div>
 
-          <div className="w-full sm:w-auto flex flex-col sm:flex-row items-center gap-4">
+          <div className="w-full sm:w-auto">
             {!isCompleted ? (
-              material?.type !== 'CHALLENGE' && (
-                <button 
-                  onClick={handleMarkComplete} 
-                  className="w-full sm:w-auto btn bg-emerald-500 hover:bg-emerald-600 text-white border-none rounded-2xl px-12 h-14 font-black uppercase tracking-widest shadow-lg shadow-emerald-100 transition-all hover:scale-[1.05]"
+              material?.type !== "CHALLENGE" && (
+                <button
+                  onClick={handleMarkComplete}
+                  className="w-full sm:w-auto btn bg-slate-900 hover:bg-slate-800 text-white border-none rounded-xl px-10 h-14 font-black uppercase tracking-widest shadow-xl shadow-slate-900/10 transition-all hover:scale-[1.02] text-xs"
                 >
-                  Selesaikan Materi <CheckCircle size={20} strokeWidth={2.5} />
+                  <CheckCircle size={18} className="mr-2" /> Tandai Selesai &
+                  Lanjut
                 </button>
               )
             ) : (
               <div className="flex flex-col sm:flex-row items-center gap-4 w-full">
-                <div className="w-full sm:w-auto bg-emerald-50 text-emerald-600 px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] border border-emerald-100 flex items-center justify-center gap-2 shadow-sm">
-                   <CheckCircle size={18} strokeWidth={3} /> Selesai
-                </div>
-                {nextMaterialId && (
-                  <Link to={`/materials/${nextMaterialId}`} className="w-full sm:w-auto btn bg-blue-600 hover:bg-blue-700 text-white border-none rounded-2xl px-12 h-14 font-black uppercase tracking-widest shadow-lg shadow-blue-200 transition-all hover:scale-[1.05] flex items-center gap-2 group">
-                    Lanjut Materi <ChevronRight size={22} strokeWidth={3} className="group-hover:translate-x-1 transition-transform" />
+                {nextMaterialId ? (
+                  <Link
+                    to={`/materials/${nextMaterialId}`}
+                    className="w-full sm:w-auto btn bg-slate-900 hover:bg-slate-800 text-white border-none rounded-xl px-10 h-14 font-black uppercase tracking-widest shadow-xl shadow-slate-900/10 transition-all flex items-center gap-2 group text-xs"
+                  >
+                    Materi Berikutnya{" "}
+                    <ChevronRight
+                      size={18}
+                      className="group-hover:translate-x-1 transition-transform"
+                    />
                   </Link>
+                ) : (
+                  <button
+                    onClick={() => {
+                      confetti({
+                        particleCount: 150,
+                        spread: 70,
+                        origin: { y: 0.6 },
+                        colors: ["#f59e0b", "#10b981", "#3b82f6", "#ef4444"],
+                      });
+                      toast.success(
+                        "BOM! Keren banget lo udah nyelesaiin semuanya! Jangan lupa klaim sertifikat & poin lo ya.",
+                      );
+                      setTimeout(() => {
+                        navigate(`/courses/${courseIdStr}`);
+                      }, 2500);
+                    }}
+                    className="w-full sm:w-auto btn bg-emerald-500 hover:bg-emerald-600 text-white border-none rounded-xl px-10 h-14 font-black uppercase tracking-widest shadow-xl shadow-emerald-500/20 text-xs"
+                  >
+                    <Sparkles size={16} className="mr-1.5 text-yellow-200" />{" "}
+                    Selesai Belajar
+                  </button>
                 )}
               </div>
             )}
           </div>
         </footer>
       </div>
-
-      <div className="fixed top-1/4 -left-40 w-96 h-96 bg-indigo-100 rounded-full mix-blend-multiply filter blur-3xl opacity-20 pointer-events-none z-0"></div>
-      <div className="fixed bottom-1/4 -right-40 w-96 h-96 bg-blue-100 rounded-full mix-blend-multiply filter blur-3xl opacity-20 pointer-events-none z-0"></div>
     </div>
   );
 };

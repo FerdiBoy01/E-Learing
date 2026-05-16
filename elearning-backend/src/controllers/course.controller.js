@@ -1,12 +1,12 @@
 const courseService = require('../services/course.service');
 const { sendSuccess } = require('../utils/responseHandler');
 const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = new PrismaClient(); // Hanya dipake buat claimReward/checkEnrollment sisaan
 
 const createCourse = async (req, res, next) => {
   try {
-    const course = await courseService.createCourse(req.body, req.user.id);
-    return sendSuccess(res, 201, 'Mata kuliah berhasil dibuat', { course });
+    const course = await courseService.createNewCourse(req.body, req.user);
+    return sendSuccess(res, 201, 'Mata kuliah berhasil dibuat (Draft)', { course });
   } catch (error) {
     next(error);
   }
@@ -14,101 +14,57 @@ const createCourse = async (req, res, next) => {
 
 const getAllCourses = async (req, res, next) => {
   try {
-    const userRole = req.user.role;
-    const whereCondition = userRole === 'STUDENT' ? { status: 'ACTIVE' } : {};
-
-    const courses = await prisma.course.findMany({
-      where: whereCondition,
-      include: {
-        lecturer: { select: { name: true } },
-        _count: {
-          select: { 
-            chapters: true,
-            enrollments: true 
-          }
-        }
-      },
-      orderBy: { created_at: 'desc' }
-    });
-
+    const courses = await courseService.getCourseCatalog(req.user);
     return sendSuccess(res, 200, 'Daftar mata kuliah berhasil diambil', { courses });
   } catch (error) {
-    console.error("Gagal ambil data katalog:", error);
     next(error);
   }
 };
 
 const getCourseById = async (req, res, next) => {
   try {
-    const { id } = req.params;
-    
-    const course = await prisma.course.findUnique({
-      where: { id: id },
-      include: {
-        lecturer: { 
-          select: { name: true, profession: true, bio: true, avatar_url: true } 
-        },
-        _count: {
-          select: { enrollments: true }
-        },
-        chapters: {
-          orderBy: { order_index: 'asc' },
-          include: {
-            materials: {
-              orderBy: { order_index: 'asc' },
-              select: { id: true, title: true, type: true }
-            }
-          }
-        }
-      }
-    });
-
-    if (!course) {
-      return res.status(404).json({ success: false, message: 'Kelas tidak ditemukan' });
-    }
-
+    const course = await courseService.getCourseDetail(req.params.id);
     return sendSuccess(res, 200, 'Detail mata kuliah berhasil diambil', { course });
   } catch (error) {
-    console.error("Gagal ambil detail course:", error);
     next(error);
   }
 };
 
 const updateCourse = async (req, res, next) => {
   try {
-    const { id } = req.params;
-    const { title, description, status } = req.body;
-
+    // 🔥 Tambahin tangkapan buat reward_points dan reward_exp
+    const { title, description, is_published, visibility, price, type, reward_points, reward_exp } = req.body;
+    
     const updateData = {};
     if (title !== undefined) updateData.title = title;
     if (description !== undefined) updateData.description = description;
-    if (status !== undefined) updateData.status = status;
+    if (is_published !== undefined) updateData.is_published = is_published;
+    if (visibility !== undefined) updateData.visibility = visibility;
+    if (price !== undefined) updateData.price = parseInt(price);
+    if (type !== undefined) updateData.type = type;
+    
+    // 🔥 Masukin ke updateData biar tersimpan di database
+    if (reward_points !== undefined) updateData.reward_points = parseInt(reward_points);
+    if (reward_exp !== undefined) updateData.reward_exp = parseInt(reward_exp);
 
-    const course = await prisma.course.update({
-      where: { id: id },
-      data: updateData
-    });
-
+    const course = await courseService.updateExistingCourse(req.params.id, updateData, req.user);
     return sendSuccess(res, 200, 'Mata kuliah berhasil diperbarui', { course });
   } catch (error) {
-    console.error("Gagal Update Course:", error);
     next(error);
   }
 };
 
 const deleteCourse = async (req, res, next) => {
   try {
-    const { id } = req.params;
-    await prisma.course.delete({ where: { id: id } });
+    await courseService.deleteExistingCourse(req.params.id, req.user);
     return sendSuccess(res, 200, 'Mata kuliah berhasil dihapus', null);
   } catch (error) {
-    console.error("Gagal Hapus Course:", error);
     next(error);
   }
 };
 
 // ==========================================
-// FUNGSI CEK STATUS ENROLLMENT
+// CEK STATUS & KLAIM EXP (GAMIFICATION ENGINE)
 // ==========================================
 const checkEnrollmentStatus = async (req, res, next) => {
   try {
@@ -116,12 +72,10 @@ const checkEnrollmentStatus = async (req, res, next) => {
     const studentId = req.user.id;
 
     const enrollment = await prisma.enrollment.findUnique({
-      where: { 
-        student_id_course_id: { student_id: studentId, course_id: courseId } 
-      }
+      where: { student_id_course_id: { student_id: studentId, course_id: courseId } }
     });
 
-    return sendSuccess(res, 200, 'Status', { 
+    return sendSuccess(res, 200, 'Status Enrollment', { 
       enrolled: !!enrollment,
       is_completed: enrollment?.is_completed || false,
       completed_at: enrollment?.completed_at || null
@@ -131,73 +85,54 @@ const checkEnrollmentStatus = async (req, res, next) => {
   }
 };
 
-// ==========================================
-// FUNGSI KOMITMEN AMBIL KELAS (ENROLL)
-// ==========================================
-const enrollCourse = async (req, res, next) => {
-  try {
-    const { id: courseId } = req.params;
-    const studentId = req.user.id;
-
-    const alreadyEnrolled = await prisma.enrollment.findUnique({
-      where: { student_id_course_id: { student_id: studentId, course_id: courseId } }
-    });
-    if (alreadyEnrolled) {
-      return sendSuccess(res, 200, 'Sudah enroll', { enrolled: true });
-    }
-
-    const activeCourse = await prisma.enrollment.findFirst({
-      where: { student_id: studentId, is_completed: false },
-      include: { course: { select: { title: true } } }
-    });
-
-    if (activeCourse) {
-      return res.status(403).json({ 
-        success: false, 
-        message: `Selesaikan dulu kelas "${activeCourse.course.title}" sebelum ngambil kelas baru coy!` 
-      });
-    }
-
-    await prisma.enrollment.create({
-      data: { student_id: studentId, course_id: courseId }
-    });
-
-    return sendSuccess(res, 201, 'Komitmen sah! Selamat belajar.', { enrolled: true });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// ==========================================
-// FUNGSI KLAIM EXP & SERTIFIKAT
-// ==========================================
 const claimReward = async (req, res, next) => {
   try {
     const { id: courseId } = req.params;
     const studentId = req.user.id;
 
+    // Ambil data enrollment beserta data course-nya (biar dapet nominal reward_exp & points)
     const enrollment = await prisma.enrollment.findUnique({
-      where: { student_id_course_id: { student_id: studentId, course_id: courseId } }
+      where: { student_id_course_id: { student_id: studentId, course_id: courseId } },
+      include: { course: true }
     });
 
     if (!enrollment) return res.status(400).json({success: false, message: "Lu belum ambil kelas ini coy!"});
     if (enrollment.is_completed) return res.status(400).json({success: false, message: "Reward udah pernah diklaim!"});
 
-    const expGained = 500; 
+    const student = await prisma.user.findUnique({ where: { id: studentId } });
 
-    // Pakai Transaction biar kalau satu gagal, batal semua
+    // Tarik hadiah dari pengaturan kelas (Kalau kosong, defaultnya 500 EXP, 0 Points)
+    const expGained = enrollment.course.reward_exp || 500; 
+    const pointsGained = enrollment.course.reward_points || 0;
+
+    // 🔥 LOGIKA LEVELING RPG (Tiap 1000 EXP Naik Level)
+    const totalExp = student.exp + expGained;
+    const newLevel = Math.floor(totalExp / 1000) + 1; // Rumus: 0-999 = Lvl 1 | 1000-1999 = Lvl 2 | dst...
+    const isLevelUp = newLevel > student.level;
+
     await prisma.$transaction([
+      // 1. Tandai kelas lulus
       prisma.enrollment.update({
         where: { id: enrollment.id },
         data: { is_completed: true, completed_at: new Date() }
       }),
+      // 2. Suntik EXP, Poin, dan update Level mahasiswa
       prisma.user.update({
         where: { id: studentId },
-        data: { exp: { increment: expGained } }
+        data: { 
+          exp: totalExp,
+          level: newLevel,
+          points: { increment: pointsGained }
+        }
       })
     ]);
 
-    return sendSuccess(res, 200, 'Berhasil klaim sertifikat dan EXP!', { expGained });
+    return sendSuccess(res, 200, 'Berhasil klaim sertifikat dan Reward!', { 
+      expGained, 
+      pointsGained,
+      newLevel,
+      isLevelUp
+    });
   } catch (error) {
     next(error);
   }
@@ -205,5 +140,5 @@ const claimReward = async (req, res, next) => {
 
 module.exports = { 
   createCourse, getAllCourses, getCourseById, updateCourse, deleteCourse,
-  checkEnrollmentStatus, enrollCourse, claimReward
+  checkEnrollmentStatus, claimReward 
 };
