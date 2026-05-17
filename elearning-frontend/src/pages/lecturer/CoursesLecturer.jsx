@@ -1,25 +1,33 @@
-import { useEffect, useState } from 'react';
-import { 
-  BookOpen, Users, ArrowRight, LayoutList, Tag, Sparkles, 
-  Globe, Lock, FileEdit, CheckCircle2, KeyRound, Copy, Share2
-} from 'lucide-react';
-import { Link } from 'react-router-dom';
-import api from '../../config/axios';
-import CreateCourseModal from '../../components/CreateCourseModal'; 
-import toast from '../../utils/toast'; 
+import { useEffect, useState } from "react";
+import {
+  BookOpen,
+  Users,
+  ArrowRight,
+  LayoutList,
+  Tag,
+  Sparkles,
+  Globe,
+  Lock,
+  FileEdit,
+  CheckCircle2,
+  KeyRound,
+  Copy,
+  Share2,
+} from "lucide-react";
+import { Link } from "react-router-dom";
+import api from "../../config/axios";
+import CreateCourseModal from "../../components/CreateCourseModal";
+import toast from "../../utils/toast";
 
 const CoursesLecturer = () => {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
-  
-  // 🔥 STATE BARU UNTUK FILTER TAB
-  // Pilihan: 'ALL' | 'PUBLIC' | 'PRIVATE' | 'PREMIUM'
-  const [activeTab, setActiveTab] = useState('ALL'); 
+  const [activeTab, setActiveTab] = useState("ALL");
 
   const fetchCourses = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/courses');
+      const response = await api.get("/courses");
       const data = response.data.data;
       setCourses(data.courses || data || []);
     } catch (error) {
@@ -30,14 +38,14 @@ const CoursesLecturer = () => {
     }
   };
 
-  useEffect(() => { fetchCourses(); }, []);
+  useEffect(() => {
+    fetchCourses();
+  }, []);
 
-  // 🔥 FUNGSI UTAMA: SALIN LINK AKSES MAHASISWA
   const handleShareLink = (courseId, title) => {
-    // Menghasilkan link absolut halaman detail kelas untuk sisi mahasiswa
     const studentCourseUrl = `${window.location.origin}/courses/${courseId}`;
     navigator.clipboard.writeText(studentCourseUrl);
-    toast.success(`Link kelas "${title}" berhasil disalin! Siap dibagikan.`);
+    toast.success(`Link kelas "${title}" berhasil disalin!`);
   };
 
   const copyAccessCode = (code) => {
@@ -45,197 +53,247 @@ const CoursesLecturer = () => {
     toast.success(`Kode akses ${code} disalin!`);
   };
 
-  // 🔥 LOGIKA FILTERING BERDASARKAN TAB YANG AKTIF
   const filteredCourses = courses.filter((course) => {
-    if (activeTab === 'PUBLIC') return course.visibility === 'PUBLIC' && course.type === 'REGULAR';
-    if (activeTab === 'PRIVATE') return course.visibility === 'PRIVATE';
-    if (activeTab === 'PREMIUM') return course.type === 'PROJECT_BASED';
-    return true; // ALL
+    if (activeTab === "PUBLIC")
+      return course.visibility === "PUBLIC" && course.type === "REGULAR";
+    if (activeTab === "PRIVATE") return course.visibility === "PRIVATE";
+    if (activeTab === "PREMIUM") return course.type === "PROJECT_BASED";
+    return true;
   });
 
-  if (loading) {
+  if (loading)
     return (
       <div className="flex flex-col justify-center items-center h-[60vh] gap-4">
-        <span className="loading loading-spinner loading-lg text-slate-800"></span>
-        <p className="text-slate-500 font-medium animate-pulse">Memuat studio mengajar...</p>
+        <span className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></span>
+        <p className="text-slate-500 text-sm font-semibold animate-pulse">
+          Memuat manajemen silabus...
+        </p>
       </div>
     );
-  }
 
   return (
-    <div className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      
+    <div className="w-full max-w-7xl mx-auto space-y-6 animate-in fade-in duration-500 overflow-x-hidden">
       {/* ========================================== */}
-      {/* 1. HEADER SECTIONS                           */}
+      {/* 1. HEADER (Glassmorphism & Crisp)            */}
       {/* ========================================== */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 flex items-center gap-3 tracking-tight">
-            <span className="p-2.5 bg-slate-900 text-white rounded-xl shadow-md">
-              <LayoutList size={24} strokeWidth={2.5} />
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white/80 backdrop-blur-xl p-6 sm:p-8 rounded-xl border border-slate-200/60 shadow-sm relative overflow-hidden">
+        {/* Subtle Orb Background */}
+        <div className="absolute -right-20 -top-20 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div className="relative z-10">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 flex items-center gap-3 tracking-tight mb-2">
+            <span className="p-2 bg-indigo-50 text-indigo-600 rounded-lg shadow-sm border border-indigo-100/50">
+              <LayoutList size={22} strokeWidth={2.5} />
             </span>
-            Katalog Kelas Anda
+            Katalog Silabus Anda
           </h1>
-          <p className="text-slate-500 font-medium mt-2 text-sm sm:text-base max-w-xl">
-            Kelola materi, atur model bisnis kelas, dan sebar akses pembelajaran ke mahasiswa.
+          <p className="text-slate-500 font-medium text-sm sm:text-base max-w-xl">
+            Kelola rincian materi, atur kebijakan akses ruang kelas, dan
+            publikasikan kurikulum ke mahasiswa.
           </p>
         </div>
-        <CreateCourseModal onCourseCreated={fetchCourses} />
+        <div className="relative z-10 w-full md:w-auto">
+          <CreateCourseModal onCourseCreated={fetchCourses} />
+        </div>
       </div>
 
       {/* ========================================== */}
-      {/* 2. TAB FILTER CONTROLLER (Premium Nav)       */}
+      {/* 2. TAB FILTER (Anti-Goyang Segmented)        */}
       {/* ========================================== */}
-      <div className="flex bg-slate-200/60 p-1.5 rounded-2xl w-full sm:w-fit overflow-x-auto gap-1">
-        <button 
-          onClick={() => setActiveTab('ALL')}
-          className={`px-5 py-2.5 text-xs font-black uppercase tracking-wider rounded-xl transition-all whitespace-nowrap cursor-pointer ${activeTab === 'ALL' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+      <div className="flex bg-slate-200/50 backdrop-blur-md p-1 rounded-xl w-full sm:w-fit overflow-x-auto custom-scrollbar gap-1 border border-slate-300/40">
+        <button
+          onClick={() => setActiveTab("ALL")}
+          className={`px-5 py-2.5 text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all whitespace-nowrap border ${
+            activeTab === "ALL"
+              ? "bg-white text-slate-900 border-slate-200/50 shadow-sm"
+              : "border-transparent text-slate-500 hover:text-slate-800"
+          }`}
         >
-          Semua Kelas ({courses.length})
+          Semua ({courses.length})
         </button>
-        <button 
-          onClick={() => setActiveTab('PUBLIC')}
-          className={`px-5 py-2.5 text-xs font-black uppercase tracking-wider rounded-xl transition-all whitespace-nowrap cursor-pointer ${activeTab === 'PUBLIC' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+        <button
+          onClick={() => setActiveTab("PUBLIC")}
+          className={`px-5 py-2.5 text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all whitespace-nowrap border flex items-center gap-1.5 ${
+            activeTab === "PUBLIC"
+              ? "bg-white text-blue-600 border-slate-200/50 shadow-sm"
+              : "border-transparent text-slate-500 hover:text-slate-800"
+          }`}
         >
-          🌐 Publik Gratis ({courses.filter(c => c.visibility === 'PUBLIC' && c.type === 'REGULAR').length})
+          <Globe size={14} /> Publik (
+          {
+            courses.filter(
+              (c) => c.visibility === "PUBLIC" && c.type === "REGULAR",
+            ).length
+          }
+          )
         </button>
-        <button 
-          onClick={() => setActiveTab('PRIVATE')}
-          className={`px-5 py-2.5 text-xs font-black uppercase tracking-wider rounded-xl transition-all whitespace-nowrap cursor-pointer ${activeTab === 'PRIVATE' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+        <button
+          onClick={() => setActiveTab("PRIVATE")}
+          className={`px-5 py-2.5 text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all whitespace-nowrap border flex items-center gap-1.5 ${
+            activeTab === "PRIVATE"
+              ? "bg-white text-rose-600 border-slate-200/50 shadow-sm"
+              : "border-transparent text-slate-500 hover:text-slate-800"
+          }`}
         >
-          🔒 Privat / Rahasia ({courses.filter(c => c.visibility === 'PRIVATE').length})
+          <Lock size={14} /> Privat (
+          {courses.filter((c) => c.visibility === "PRIVATE").length})
         </button>
-        <button 
-          onClick={() => setActiveTab('PREMIUM')}
-          className={`px-5 py-2.5 text-xs font-black uppercase tracking-wider rounded-xl transition-all whitespace-nowrap cursor-pointer ${activeTab === 'PREMIUM' ? 'bg-white text-amber-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+        <button
+          onClick={() => setActiveTab("PREMIUM")}
+          className={`px-5 py-2.5 text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all whitespace-nowrap border flex items-center gap-1.5 ${
+            activeTab === "PREMIUM"
+              ? "bg-white text-amber-600 border-slate-200/50 shadow-sm"
+              : "border-transparent text-slate-500 hover:text-slate-800"
+          }`}
         >
-          ✨ Premium Berbayar ({courses.filter(c => c.type === 'PROJECT_BASED').length})
+          <Sparkles size={14} /> Premium (
+          {courses.filter((c) => c.type === "PROJECT_BASED").length})
         </button>
       </div>
 
       {/* ========================================== */}
-      {/* 3. EMPTY STATE DATA TRUTHY                   */}
+      {/* 3. EMPTY STATE                               */}
       {/* ========================================== */}
       {filteredCourses.length === 0 && (
-        <div className="bg-white border border-slate-200 rounded-3xl p-12 flex flex-col items-center justify-center text-center shadow-sm">
-          <div className="w-16 h-16 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-center shadow-inner mb-4">
-            <BookOpen size={28} className="text-slate-300" />
+        <div className="bg-white/50 backdrop-blur-md border border-dashed border-slate-300 rounded-xl p-16 flex flex-col items-center justify-center text-center">
+          <div className="w-14 h-14 bg-slate-100 border border-slate-200 rounded-xl flex items-center justify-center mb-4">
+            <BookOpen size={24} className="text-slate-400" />
           </div>
-          <h3 className="font-extrabold text-slate-800 text-lg mb-1">Tidak Ada Kelas</h3>
-          <p className="text-slate-400 max-w-xs text-xs font-medium">
-            Kategori ini kosong. Silakan buat kelas baru atau sesuaikan filter pencarian Anda.
+          <h3 className="font-bold text-slate-900 text-base mb-1">
+            Kurikulum Kosong
+          </h3>
+          <p className="text-slate-500 text-xs font-medium max-w-sm">
+            Tidak ada mata kuliah yang sesuai dengan kategori ini. Buat draf
+            kelas baru untuk memulai.
           </p>
         </div>
       )}
 
       {/* ========================================== */}
-      {/* 4. GRID DATA KELAS TERFILTER                 */}
+      {/* 4. GRID DATA KELAS (Apple Cards)             */}
       {/* ========================================== */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredCourses.map((course) => {
-          const totalBab = course._count?.chapters || course.chapters?.length || 0;
+          const totalBab =
+            course._count?.chapters || course.chapters?.length || 0;
           const totalMhs = course._count?.enrollments || 0;
-          const formattedPrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(course.price || 0);
+          const formattedPrice = new Intl.NumberFormat("id-ID", {
+            style: "currency",
+            currency: "IDR",
+            maximumFractionDigits: 0,
+          }).format(course.price || 0);
 
           return (
-            <div key={course.id} className="bg-white rounded-3xl shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-200 flex flex-col h-full overflow-hidden group">
-              
-              {/* TOP STATUS CARDS */}
-              <div className="flex justify-between items-center p-4 border-b border-slate-100 bg-slate-50/50">
-                {course.visibility === 'PUBLIC' ? (
-                  <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
-                    <Globe size={12} /> Publik
-                  </div>
+            <div
+              key={course.id}
+              className="bg-white/80 backdrop-blur-xl rounded-xl shadow-sm hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 border border-slate-200/60 flex flex-col h-full overflow-hidden group"
+            >
+              {/* TOP STATUS BADGES */}
+              <div className="flex justify-between items-center px-5 py-3 border-b border-slate-100 bg-white/50 shrink-0">
+                {course.visibility === "PUBLIC" ? (
+                  <span className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-blue-700 bg-blue-50 px-2 py-1 rounded border border-blue-100">
+                    <Globe size={10} /> Kelas Publik
+                  </span>
                 ) : (
-                  <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-100">
-                    <Lock size={12} /> Privat
-                  </div>
+                  <span className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-rose-700 bg-rose-50 px-2 py-1 rounded border border-rose-100">
+                    <Lock size={10} /> Rahasia
+                  </span>
                 )}
 
                 {course.is_published ? (
-                  <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
-                    <CheckCircle2 size={12} /> Rilis
-                  </div>
+                  <span className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-100">
+                    <CheckCircle2 size={10} /> Dipublikasi
+                  </span>
                 ) : (
-                  <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                    <FileEdit size={12} /> Draft
-                  </div>
+                  <span className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 px-2 py-1 rounded border border-slate-200">
+                    <FileEdit size={10} /> Draf Tertutup
+                  </span>
                 )}
               </div>
 
-              {/* BODY KELAS */}
-              <div className="p-6 flex-1 flex flex-col">
+              {/* CARD BODY */}
+              <div className="p-5 flex-1 flex flex-col bg-white">
                 <div className="flex justify-between items-start mb-4">
-                  <div className={`w-12 h-12 border rounded-xl flex items-center justify-center shadow-sm ${course.type === 'PROJECT_BASED' ? 'bg-amber-50 border-amber-100 text-amber-600' : 'bg-slate-50 border-slate-200 text-slate-600'}`}>
-                    <BookOpen size={24} strokeWidth={2.5} />
+                  <div
+                    className={`w-10 h-10 border rounded-lg flex items-center justify-center shadow-sm shrink-0 ${course.type === "PROJECT_BASED" ? "bg-amber-50 border-amber-100 text-amber-600" : "bg-slate-50 border-slate-200 text-slate-600"}`}
+                  >
+                    <BookOpen size={20} strokeWidth={2.5} />
                   </div>
-                  
-                  {course.type === 'PROJECT_BASED' ? (
-                    <div className="text-[10px] font-black uppercase tracking-wider text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 flex items-center gap-1">
+
+                  {course.type === "PROJECT_BASED" ? (
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50 px-2 py-1 rounded border border-amber-100 flex items-center gap-1">
                       <Sparkles size={10} /> Premium
-                    </div>
+                    </span>
                   ) : (
-                    <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 flex items-center gap-1">
-                      <Tag size={10} /> Gratis
-                    </div>
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 px-2 py-1 rounded border border-indigo-100 flex items-center gap-1">
+                      <Tag size={10} /> Akses Bebas
+                    </span>
                   )}
                 </div>
-                
-                <h2 className="text-lg font-extrabold text-slate-900 leading-tight mb-1.5 line-clamp-2">{course.title}</h2>
-                <p className="text-xs font-medium text-slate-500 line-clamp-2 mb-4 flex-1">
-                  {course.description || "Belum ada deskripsi untuk mata kuliah ini."}
+
+                <h2 className="text-base font-bold text-slate-900 leading-snug mb-1.5 line-clamp-2 group-hover:text-indigo-600 transition-colors">
+                  {course.title}
+                </h2>
+                <p className="text-[11px] font-medium text-slate-500 line-clamp-2 mb-4 flex-1">
+                  {course.description ||
+                    "Silabus ini belum memiliki keterangan. Silakan edit detail kelas Anda."}
                 </p>
 
-                {/* AREA HARGA & KODE AKSES */}
-                <div className="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between gap-2">
-                  {course.type === 'PROJECT_BASED' && course.price > 0 ? (
-                    <span className="font-black text-base text-slate-900">{formattedPrice}</span>
+                {/* AREA HARGA / KODE */}
+                <div className="mt-auto pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 shrink-0">
+                  {course.type === "PROJECT_BASED" && course.price > 0 ? (
+                    <div className="font-black text-sm text-slate-900">
+                      {formattedPrice}
+                    </div>
                   ) : (
-                    <span className="font-bold text-xs text-emerald-600 uppercase tracking-wider">Akses Gratis</span>
+                    <div className="font-bold text-[10px] text-emerald-600 uppercase tracking-widest">
+                      Akses Bebas Biaya
+                    </div>
                   )}
 
-                  {/* Tampilkan Kode Akses untuk Kelas Privat */}
-                  {course.visibility === 'PRIVATE' && course.access_code && (
-                    <button 
+                  {course.visibility === "PRIVATE" && course.access_code && (
+                    <button
                       onClick={() => copyAccessCode(course.access_code)}
-                      className="flex items-center gap-1 text-[10px] font-black bg-slate-100 text-slate-700 px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-200 transition-colors cursor-pointer"
-                      title="Klik untuk Salin Kunci"
+                      className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest bg-slate-50 text-slate-700 px-2 py-1 rounded-md border border-slate-200 hover:bg-slate-100 transition-colors"
+                      title="Salin Kunci"
                     >
-                      <KeyRound size={10} /> Kunci: {course.access_code} <Copy size={10} className="opacity-60" />
+                      <KeyRound size={10} /> {course.access_code}{" "}
+                      <Copy size={10} className="text-slate-400" />
                     </button>
                   )}
                 </div>
               </div>
-              
-              {/* FOOTER ACTION & QUICK MENUS */}
-              <div className="p-4 bg-slate-50 border-t border-slate-100 flex flex-col gap-2.5">
-                
-                {/* Info kecil di atas tombol */}
-                <div className="flex gap-2 text-[11px] font-bold text-slate-500">
-                  <span className="flex-1 flex justify-center items-center gap-1 bg-white border border-slate-200/80 py-1.5 rounded-lg">
-                    <LayoutList size={12} className="text-slate-400" /> {totalBab} Bab
+
+              {/* CARD FOOTER */}
+              <div className="p-4 bg-slate-50/50 border-t border-slate-100 flex flex-col gap-3 shrink-0">
+                <div className="flex gap-2 text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                  <span className="flex-1 flex justify-center items-center gap-1.5 bg-white border border-slate-200 py-1.5 rounded-lg shadow-sm">
+                    <LayoutList size={12} className="text-slate-400" />{" "}
+                    {totalBab} Bab
                   </span>
-                  <span className="flex-1 flex justify-center items-center gap-1 bg-white border border-slate-200/80 py-1.5 rounded-lg">
-                    <Users size={12} className="text-slate-400" /> {totalMhs} Siswa
+                  <span className="flex-1 flex justify-center items-center gap-1.5 bg-white border border-slate-200 py-1.5 rounded-lg shadow-sm">
+                    <Users size={12} className="text-slate-400" /> {totalMhs}{" "}
+                    Siswa
                   </span>
-                  
-                  {/* 🔥 LINK BAGI (SHARE LINK MENU) KHUSUS UNTUK PRIVAT */}
-                  {course.visibility === 'PRIVATE' && (
-                    <button 
+
+                  {course.visibility === "PRIVATE" && (
+                    <button
                       onClick={() => handleShareLink(course.id, course.title)}
-                      className="flex-1 flex justify-center items-center gap-1 bg-rose-50 border border-rose-200 text-rose-600 hover:bg-rose-600 hover:text-white py-1.5 rounded-lg transition-colors cursor-pointer"
-                      title="Salin URL Kelas Rahasia untuk Mahasiswa"
+                      className="flex-1 flex justify-center items-center gap-1.5 bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-600 hover:text-white py-1.5 rounded-lg transition-colors shadow-sm"
+                      title="Bagikan Tautan Pendaftaran Privat"
                     >
-                      <Share2 size={12} /> Bagikan Link
+                      <Share2 size={12} /> Tautan
                     </button>
                   )}
                 </div>
 
-                <Link to={`/courses/${course.id}`} className="btn w-full bg-slate-900 border-none text-white hover:bg-slate-800 shadow-sm font-bold h-11 min-h-0 text-xs rounded-xl uppercase tracking-wider flex items-center justify-center gap-1.5">
-                  Kelola Struktur <ArrowRight size={14} strokeWidth={2.5} />
+                <Link
+                  to={`/courses/${course.id}`}
+                  className="w-full bg-slate-950 border border-slate-900 text-white hover:bg-slate-800 shadow-sm py-2.5 text-[11px] font-bold rounded-lg uppercase tracking-widest flex items-center justify-center gap-1.5 transition-colors"
+                >
+                  Kelola Modul <ArrowRight size={14} />
                 </Link>
               </div>
-
             </div>
           );
         })}

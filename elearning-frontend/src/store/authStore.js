@@ -1,45 +1,51 @@
-import { create } from 'zustand';
-import api from '../config/axios';
+import { create } from "zustand";
+import api from "../config/axios";
 
 const useAuthStore = create((set) => ({
-  user: JSON.parse(localStorage.getItem('user')) || null,
-  token: localStorage.getItem('token') || null,
+  user: JSON.parse(localStorage.getItem("user")) || null,
+  token: localStorage.getItem("token") || null,
   isLoading: false,
   error: null,
 
   login: async (email, password) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await api.post('/auth/login', { email, password });
+      const response = await api.post("/auth/login", { email, password });
       const { user, token } = response.data.data;
 
       // Simpan ke local storage
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(user));
+      localStorage.setItem("token", token);
+      localStorage.setItem("user", JSON.stringify(user));
 
       // Simpan ke state Zustand
       set({ user, token, isLoading: false });
       return true;
     } catch (err) {
-      set({ 
-        error: err.response?.data?.message || 'Terjadi kesalahan saat login', 
-        isLoading: false 
+      set({
+        error: err.response?.data?.message || "Terjadi kesalahan saat login",
+        isLoading: false,
       });
-      return false;
+      return false; // 🔥 Typo "sa" udah gue musnahin di sini!
     }
   },
 
   logout: () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
     set({ user: null, token: null });
-    window.location.href = '/login';
+    window.location.href = "/login";
   },
 
   // Update user data in global state and localStorage
   setUser: (userData) => {
-    localStorage.setItem('user', JSON.stringify(userData));
+    localStorage.setItem("user", JSON.stringify(userData));
     set({ user: userData });
+  },
+
+  // 🔥 TAMBAHAN WAJIB: Fungsi buat nyimpen token dari halaman Login
+  setToken: (token) => {
+    localStorage.setItem("token", token);
+    set({ token });
   },
 
   // Update error state

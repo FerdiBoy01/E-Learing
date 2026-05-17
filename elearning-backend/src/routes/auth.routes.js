@@ -1,8 +1,11 @@
-const express = require('express');
-const authController = require('../controllers/auth.controller');
-const validate = require('../middlewares/validate');
-const { registerSchema, loginSchema } = require('../validations/auth.validation');
-const { protect } = require('../middlewares/auth.middleware');
+const express = require("express");
+const authController = require("../controllers/auth.controller");
+const validate = require("../middlewares/validate");
+const {
+  registerSchema,
+  loginSchema,
+} = require("../validations/auth.validation");
+const { protect } = require("../middlewares/auth.middleware");
 
 const router = express.Router();
 
@@ -19,7 +22,7 @@ const router = express.Router();
  *   post:
  *     summary: Mendaftarkan akun baru (Mahasiswa/Dosen)
  *     tags: [Auth]
- *     security: [] 
+ *     security: []
  *     requestBody:
  *       required: true
  *       content:
@@ -49,7 +52,7 @@ const router = express.Router();
  *       400:
  *         description: Validasi error atau email sudah terdaftar
  */
-router.post('/register', validate(registerSchema), authController.register);
+router.post("/register", validate(registerSchema), authController.register);
 
 /**
  * @swagger
@@ -57,7 +60,7 @@ router.post('/register', validate(registerSchema), authController.register);
  *   post:
  *     summary: Login untuk mendapatkan token JWT
  *     tags: [Auth]
- *     security: [] 
+ *     security: []
  *     requestBody:
  *       required: true
  *       content:
@@ -80,7 +83,7 @@ router.post('/register', validate(registerSchema), authController.register);
  *       401:
  *         description: Email atau password salah
  */
-router.post('/login', validate(loginSchema), authController.login);
+router.post("/login", validate(loginSchema), authController.login);
 
 /**
  * @swagger
@@ -94,6 +97,6 @@ router.post('/login', validate(loginSchema), authController.login);
  *       401:
  *         description: Tidak ada token atau token tidak valid
  */
-router.get('/me', protect, authController.getMe);
+router.get("/me", protect, authController.getMe);
 
 module.exports = router;

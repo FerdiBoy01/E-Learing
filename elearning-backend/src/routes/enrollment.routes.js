@@ -1,22 +1,28 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
 
-// Import controller
-const enrollmentController = require('../controllers/enrollment.controller'); 
-
-// 🔥 INI PENYEBAB ERRORNYA KEMAREN COY (Harus auth.middleware)
-const { protect, restrictTo } = require('../middlewares/auth.middleware');
+const enrollmentController = require("../controllers/enrollment.controller");
+const { protect, restrictTo } = require("../middlewares/auth.middleware");
 
 // ==========================================
 // ROUTES UNTUK ENROLLMENT
 // ==========================================
 
-// Endpoint: POST /api/enrollments/:courseId
-router.post(
-  '/:courseId',
+// 🔥 1. TAMBAHAN BARU: Mengambil daftar kelas milik siswa (GET /me)
+// WAJIB ditaruh di atas /:courseId biar kata "me" nggak dianggap id kelas
+router.get(
+  "/me",
   protect,
-  restrictTo('STUDENT'),
-  enrollmentController.enrollCourse
+  restrictTo("STUDENT"),
+  enrollmentController.getMyEnrollments,
+);
+
+// 2. Mendaftar ke kelas (POST /:courseId)
+router.post(
+  "/:courseId",
+  protect,
+  restrictTo("STUDENT"),
+  enrollmentController.enrollCourse,
 );
 
 module.exports = router;

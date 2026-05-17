@@ -1,98 +1,78 @@
 /**
- * Toast Notification Utility
- * Provides non-blocking feedback to users
+ * Toast Notification - Apple iOS Glass Style
  */
 
-export const showToast = (message, type = 'info', duration = 3000) => {
-  // Create a unique container if it doesn't exist
-  let toastContainer = document.getElementById('toast-container');
+const showToast = (message, type = "info", duration = 3000) => {
+  let toastContainer = document.getElementById("toast-container");
   if (!toastContainer) {
-    toastContainer = document.createElement('div');
-    toastContainer.id = 'toast-container';
-    toastContainer.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      z-index: 9999;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      max-width: 400px;
-      font-family: Inter, sans-serif;
-    `;
+    toastContainer = document.createElement("div");
+    toastContainer.id = "toast-container";
+    toastContainer.className =
+      "fixed top-6 left-1/2 -translate-x-1/2 z-[9999] flex flex-col items-center gap-2 pointer-events-none";
     document.body.appendChild(toastContainer);
   }
 
-  // Create toast element
-  const toast = document.createElement('div');
-  const bgColor = {
-    success: '#10b981',
-    error: '#ef4444',
-    warning: '#f59e0b',
-    info: '#3b82f6',
-  }[type];
+  const toastEl = document.createElement("div");
 
-  const textColor = '#ffffff';
+  // Warna solid tapi elegan
+  const config = {
+    success: {
+      text: "text-emerald-700",
+      bg: "bg-emerald-50/80",
+      border: "border-emerald-200/50",
+      icon: "✓",
+    },
+    error: {
+      text: "text-rose-700",
+      bg: "bg-rose-50/80",
+      border: "border-rose-200/50",
+      icon: "✕",
+    },
+    warning: {
+      text: "text-amber-700",
+      bg: "bg-amber-50/80",
+      border: "border-amber-200/50",
+      icon: "!",
+    },
+    info: {
+      text: "text-indigo-700",
+      bg: "bg-indigo-50/80",
+      border: "border-indigo-200/50",
+      icon: "i",
+    },
+  };
 
-  toast.style.cssText = `
-    background-color: ${bgColor};
-    color: ${textColor};
-    padding: 12px 16px;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    font-size: 14px;
-    font-weight: 500;
-    animation: slideIn 0.3s ease-out;
-    animation-fill-mode: forwards;
-  `;
-  
-  toast.textContent = message;
-  toastContainer.appendChild(toast);
+  const { text, bg, border, icon } = config[type] || config.info;
 
-  // Add animation
-  const style = document.createElement('style');
-  if (!document.querySelector('style[data-toast-animation]')) {
-    style.setAttribute('data-toast-animation', 'true');
-    style.textContent = `
-      @keyframes slideIn {
-        from {
-          transform: translateX(400px);
-          opacity: 0;
-        }
-        to {
-          transform: translateX(0);
-          opacity: 1;
-        }
-      }
-      
-      @keyframes slideOut {
-        from {
-          transform: translateX(0);
-          opacity: 1;
-        }
-        to {
-          transform: translateX(400px);
-          opacity: 0;
-        }
-      }
-    `;
-    document.head.appendChild(style);
-  }
+  // Efek Glass: backdrop-blur-md
+  toastEl.className = `flex items-center gap-3 px-4 py-3 rounded-lg shadow-sm border ${border} ${bg} backdrop-blur-md ${text} text-sm font-semibold transform -translate-y-4 opacity-0 transition-all duration-300 ease-out`;
 
-  // Auto remove after duration
+  toastEl.innerHTML = `<span class="flex items-center justify-center w-5 h-5 rounded-md bg-white shadow-sm text-xs font-bold">${icon}</span> <span>${message}</span>`;
+
+  toastContainer.appendChild(toastEl);
+
+  // Animasi Pop-down perlahan
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      toastEl.classList.remove("-translate-y-4", "opacity-0");
+      toastEl.classList.add("translate-y-0", "opacity-100");
+    });
+  });
+
   setTimeout(() => {
-    toast.style.animation = 'slideOut 0.3s ease-out forwards';
+    toastEl.classList.remove("translate-y-0", "opacity-100");
+    toastEl.classList.add("-translate-y-4", "opacity-0");
     setTimeout(() => {
-      toastContainer.removeChild(toast);
+      if (toastContainer.contains(toastEl)) toastContainer.removeChild(toastEl);
     }, 300);
   }, duration);
 };
 
 export const toast = {
-  success: (message, duration) => showToast(message, 'success', duration),
-  error: (message, duration) => showToast(message, 'error', duration),
-  warning: (message, duration) => showToast(message, 'warning', duration),
-  info: (message, duration) => showToast(message, 'info', duration),
+  success: (message, duration) => showToast(message, "success", duration),
+  error: (message, duration) => showToast(message, "error", duration),
+  warning: (message, duration) => showToast(message, "warning", duration),
+  info: (message, duration) => showToast(message, "info", duration),
 };
 
 export default toast;
