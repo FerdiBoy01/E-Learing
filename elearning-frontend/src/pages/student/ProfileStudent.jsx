@@ -42,7 +42,7 @@ const ProfileStudent = () => {
     try {
       setLoading(true);
       const response = await api.get("/users/me");
-      const userData = response.data.data.user;
+      const userData = response.data.data.user || response.data.data;
 
       const mappedData = {
         name: userData.name || "",
@@ -55,7 +55,6 @@ const ProfileStudent = () => {
       setFormData(mappedData);
       if (userData.avatar_url) setImagePreview(userData.avatar_url);
 
-      // 🔥 FIX: Paksa state global untuk memperbarui angka gamifikasi
       setUser({
         ...userData,
         exp: Number(userData.exp) || 0,
@@ -64,7 +63,7 @@ const ProfileStudent = () => {
       });
     } catch (error) {
       console.error("Gagal ambil data profil", error);
-      toast.error("Gagal memuat data profil. Pastikan koneksi aman.");
+      toast.error("Gagal memuat data profil.");
     } finally {
       setLoading(false);
     }
@@ -83,6 +82,7 @@ const ProfileStudent = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  // 🔥 FIX BUG UPLOAD SAKTI: Samakan alur dengan milik dosen (Pakai API Upload Global)
   const handleImageChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -90,29 +90,45 @@ const ProfileStudent = () => {
     if (file.size > 2 * 1024 * 1024)
       return toast.error("Ukuran gambar maksimal 2MB");
 
+    // Tampilkan preview lokal instan
     const reader = new FileReader();
     reader.onloadend = () => setImagePreview(reader.result);
     reader.readAsDataURL(file);
 
+    // Pakai field 'image' sesuai konfigurasi router global /api/upload
     const uploadData = new FormData();
-    uploadData.append("avatar", file);
+    uploadData.append("image", file);
 
     try {
       setIsSubmitting(true);
-      const response = await api.post("/users/upload-avatar", uploadData, {
+
+      // 1. Ambil URL gambar dari endpoint upload global
+      const resUpload = await api.post("/upload", uploadData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      const updatedUser = response.data.data.user;
-      setFormData((prev) => ({ ...prev, avatar_url: updatedUser.avatar_url }));
+      const uploadedUrl = resUpload.data.url;
 
-      setUser({
-        ...user,
-        avatar_url: updatedUser.avatar_url,
-      });
+      // 2. Siapkan data profile baru
+      const updatedProfileData = {
+        ...formData,
+        avatar_url: uploadedUrl,
+      };
+
+      // 3. Simpan permanen ke DB user profile
+      const resProfile = await api.put("/users/profile", updatedProfileData);
+
+      if (resProfile.data?.data?.user) {
+        const freshUserData = resProfile.data.data.user;
+        setUser(freshUserData);
+        setFormData(freshUserData);
+      } else {
+        setFormData((prev) => ({ ...prev, avatar_url: uploadedUrl }));
+        setUser({ ...user, avatar_url: uploadedUrl });
+      }
 
       toast.success("Foto profil diperbarui");
     } catch (error) {
-      toast.error("Gagal upload foto profil");
+      toast.error("Gagal memperbarui foto profil");
       setImagePreview(formData.avatar_url);
     } finally {
       setIsSubmitting(false);
@@ -160,257 +176,213 @@ const ProfileStudent = () => {
     if (level >= 10)
       return {
         title: "Legendary Scholar",
-        icon: <Crown size={24} className="text-amber-300 drop-shadow-md" />,
-        color: "bg-gradient-to-br from-amber-400 to-yellow-600",
-        textColor: "text-amber-500",
-        shadow: "shadow-amber-500/30",
+        icon: <Crown size={14} />,
+        color: "bg-slate-900 border-slate-950",
       };
     if (level >= 7)
       return {
         title: "Platinum Dev",
-        icon: <Medal size={24} className="text-cyan-200 drop-shadow-md" />,
-        color: "bg-gradient-to-br from-cyan-400 to-teal-500",
-        textColor: "text-cyan-600",
-        shadow: "shadow-cyan-500/30",
+        icon: <Medal size={14} />,
+        color: "bg-slate-800 border-slate-900",
       };
     if (level >= 4)
       return {
         title: "Gold Hacker",
-        icon: <Shield size={24} className="text-yellow-100 drop-shadow-md" />,
-        color: "bg-gradient-to-br from-yellow-400 to-amber-500",
-        textColor: "text-yellow-600",
-        shadow: "shadow-yellow-500/30",
+        icon: <Shield size={14} />,
+        color: "bg-slate-700 border-slate-800",
       };
     if (level >= 2)
       return {
         title: "Silver Coder",
-        icon: <Hexagon size={24} className="text-slate-100 drop-shadow-md" />,
-        color: "bg-gradient-to-br from-slate-300 to-slate-500",
-        textColor: "text-slate-600",
-        shadow: "shadow-slate-500/30",
+        icon: <Hexagon size={14} />,
+        color: "bg-slate-600 border-slate-700",
       };
     return {
       title: "Iron Novice",
-      icon: <Shield size={24} className="text-orange-100 drop-shadow-md" />,
-      color: "bg-gradient-to-br from-orange-300 to-orange-500",
-      textColor: "text-orange-600",
-      shadow: "shadow-orange-500/30",
+      icon: <Shield size={14} />,
+      color: "bg-slate-500 border-slate-600",
     };
   };
 
-  // 🔥 FIX & UPGRADE: Auto-Calculate Level dari jumlah EXP!
   const currentExp = Number(user?.exp) || 0;
-
-  // Kalau EXP 3200 -> 3200/1000 = 3.2 -> dibuletin ke bawah jadi 3 -> ditambah 1 = Level 4!
   const calculatedLevel = Math.floor(currentExp / 1000) + 1;
-
-  // Ambil level terbesar antara database vs kalkulasi aslinya
   const currentLevel = Math.max(Number(user?.level) || 1, calculatedLevel);
-
   const currentPoints = Number(user?.points) || 0;
   const maxExpForCurrentLevel = currentLevel * 1000;
   const rank = getRankData(currentLevel);
 
   if (loading)
     return (
-      <div className="min-h-[70vh] flex flex-col justify-center items-center">
-        <span className="loading loading-spinner loading-lg text-slate-800"></span>
-        <p className="mt-4 text-slate-500 font-bold animate-pulse text-sm">
-          Menyiapkan profilmu...
-        </p>
+      <div className="h-[70vh] flex flex-col justify-center items-center">
+        <span className="w-8 h-8 border-4 border-slate-200 border-t-slate-950 rounded-full animate-spin"></span>
       </div>
     );
 
   return (
-    <div className="max-w-6xl mx-auto px-4 md:px-6 pb-20 pt-4 text-slate-800 animate-in fade-in duration-500">
-      <div className="relative mb-32">
-        <div className="h-48 md:h-64 rounded-[2rem] overflow-hidden bg-slate-900 relative border border-slate-800 shadow-xl">
-          <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:24px_24px]" />
-          <div className="absolute top-0 right-0 w-72 h-72 bg-blue-500/20 blur-3xl rounded-full" />
+    <div className="max-w-[1500px] mx-auto p-4 sm:p-6 lg:p-8 font-sans text-slate-900 animate-in fade-in duration-300 space-y-6">
+      {/* ========================================================================= */}
+      {/* HEADER BANNER AREA (Apple Minimalist Glass)                               */}
+      {/* ========================================================================= */}
+      <div className="relative rounded-xl border border-slate-200 shadow-sm bg-white p-6 sm:p-8 flex flex-col md:flex-row items-center gap-6">
+        {/* AVATAR DENGAN BADGE RANK */}
+        <div className="relative shrink-0 group">
+          <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-xl overflow-hidden border border-slate-200 bg-slate-50 relative shadow-sm">
+            {imagePreview ? (
+              <img
+                src={imagePreview}
+                alt="Avatar"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-slate-300 bg-slate-50">
+                <User size={48} />
+              </div>
+            )}
+
+            {/* Overlay Klik untuk Upload pas Mode Edit */}
+            {isEditing && (
+              <div
+                onClick={() => !isSubmitting && fileInputRef.current?.click()}
+                className="absolute inset-0 bg-slate-950/40 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-sm cursor-pointer"
+              >
+                <Camera size={20} className="text-white mb-0.5" />
+                <span className="text-white text-[8px] font-black uppercase tracking-wider">
+                  Ganti
+                </span>
+              </div>
+            )}
+          </div>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleImageChange}
+            className="hidden"
+          />
         </div>
 
-        <div className="absolute -bottom-24 left-1/2 -translate-x-1/2 w-[92%] md:w-auto md:left-10 md:translate-x-0">
-          <div className="bg-white/90 backdrop-blur-xl border border-white/60 shadow-2xl rounded-3xl px-6 py-5 flex flex-col md:flex-row items-center gap-6 min-w-[320px]">
-            <div className="relative group shrink-0">
-              <div className="w-32 h-32 md:w-36 md:h-36 rounded-3xl overflow-hidden border-[6px] border-white bg-slate-100 shadow-xl relative">
-                {imagePreview ? (
-                  <img
-                    src={imagePreview}
-                    alt="Avatar"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-slate-300">
-                    <User size={60} />
-                  </div>
-                )}
-                <div
-                  className={`absolute bottom-0 right-0 p-1.5 rounded-tl-xl rounded-br-2xl ${rank.color} border-2 border-white shadow-lg`}
-                >
-                  {rank.icon}
-                </div>
-              </div>
-
-              {isEditing && (
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isSubmitting}
-                  className="absolute bottom-1 right-1 bg-slate-900 hover:bg-slate-800 text-white p-3 rounded-2xl shadow-lg transition active:scale-95 border-4 border-white"
-                >
-                  <Camera size={16} />
-                </button>
-              )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleImageChange}
-                className="hidden"
-              />
+        {/* INFO UTAMA USER */}
+        <div className="text-center md:text-left flex-1 space-y-2">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 justify-center md:justify-start">
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+              {formData.name || "Nusa Student"}
+            </h1>
+            <div
+              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[9px] font-black uppercase tracking-widest text-white border w-fit mx-auto md:mx-0 ${rank.color}`}
+            >
+              {rank.icon} {rank.title}
             </div>
+          </div>
 
-            <div className="text-center md:text-left flex-1 pr-4">
-              <div className="flex flex-col md:flex-row md:items-center gap-3">
-                <h1 className="text-2xl md:text-4xl font-black text-slate-900 leading-tight tracking-tight">
-                  {formData.name || "Pelajar Hebat"}
-                </h1>
-                <div
-                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-black uppercase tracking-widest text-white shadow-lg border border-white/20 ${rank.color} ${rank.shadow}`}
-                >
-                  <Sparkles size={12} /> {rank.title}
-                </div>
-              </div>
+          <p className="text-slate-500 text-xs flex items-center justify-center md:justify-start gap-1.5 font-medium">
+            <Mail size={12} /> {user?.email}
+          </p>
 
-              <p className="mt-2 text-slate-500 text-sm flex items-center justify-center md:justify-start gap-2 break-all font-medium">
-                <Mail size={14} /> {user?.email}
-              </p>
-
-              <div className="mt-4 flex flex-wrap items-center justify-center md:justify-start gap-3">
-                <div className="px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold">
-                  Level {currentLevel}
-                </div>
-                {formData.profession && (
-                  <div className="px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-100 text-blue-700 text-xs font-bold">
-                    {formData.profession}
-                  </div>
-                )}
-              </div>
-            </div>
+          <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 pt-1">
+            <span className="px-2.5 py-1 rounded-md bg-slate-100 border border-slate-200 text-slate-800 text-[10px] font-black uppercase tracking-wider">
+              Level {currentLevel}
+            </span>
+            {formData.profession && (
+              <span className="px-2.5 py-1 rounded-md bg-slate-50 border border-slate-200 text-slate-600 text-[10px] font-bold">
+                {formData.profession}
+              </span>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
-        <div className="space-y-6 xl:sticky xl:top-6">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-4 opacity-5">
-              <TrendingUp size={100} className="text-slate-900" />
-            </div>
-
-            <div className="flex items-center justify-between mb-6 relative z-10">
+      {/* ========================================================================= */}
+      {/* GRID KONTEN UTAMA                                                         */}
+      {/* ========================================================================= */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        {/* GRID KIRI: STATS & ATRIBUT GAMIFIKASI */}
+        <div className="space-y-6">
+          {/* CARD EXP */}
+          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm relative overflow-hidden">
+            <div className="flex items-center justify-between mb-4">
               <div>
-                <p className="text-[10px] font-black tracking-widest uppercase text-slate-400 mb-0.5">
+                <p className="text-[9px] font-black tracking-widest uppercase text-slate-400 mb-0.5">
                   Progress Level
                 </p>
-                <h3 className="text-lg font-black text-slate-800">
-                  Combat EXP
+                <h3 className="text-sm font-bold text-slate-900">
+                  Combat EXP Pts
                 </h3>
               </div>
-              <div className="w-12 h-12 rounded-2xl bg-slate-900 flex items-center justify-center shadow-lg shadow-slate-900/20">
-                <Zap size={20} className="text-amber-400" />
+              <div className="p-2 bg-slate-100 border border-slate-200 rounded-lg text-slate-900">
+                <Zap size={16} strokeWidth={2.5} />
               </div>
             </div>
 
-            <div className="mb-6 relative z-10">
-              <div className="flex items-end justify-between mb-2">
-                <div className="flex items-end gap-1">
-                  <h2 className="text-4xl font-black text-slate-900 leading-none">
-                    {currentExp}
-                  </h2>
-                  <span className="text-sm font-bold text-slate-400 mb-1">
-                    / {maxExpForCurrentLevel}
-                  </span>
-                </div>
-                <span className="text-[10px] font-black text-slate-400 bg-slate-100 px-2 py-1 rounded uppercase">
-                  EXP Pts
+            <div className="space-y-2">
+              <div className="flex items-end gap-1">
+                <h2 className="text-2xl font-black text-slate-900 leading-none">
+                  {currentExp}
+                </h2>
+                <span className="text-xs font-bold text-slate-400">
+                  / {maxExpForCurrentLevel}
                 </span>
               </div>
 
-              <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden shadow-inner border border-slate-200/50">
+              <div className="w-full h-2 bg-slate-100 border border-slate-200 rounded-full overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-slate-900 transition-all duration-1000 relative"
+                  className="h-full rounded-full bg-slate-900 transition-all duration-500"
                   style={{
                     width: `${Math.min((currentExp / maxExpForCurrentLevel) * 100, 100)}%`,
                   }}
-                >
-                  <div className="absolute inset-0 bg-white/20"></div>
-                </div>
+                />
               </div>
-            </div>
-
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 relative z-10">
-              <p className="text-xs text-slate-600 font-medium">
-                Selesaikan modul materi dan raih kelipatan{" "}
-                <strong className="text-slate-900">1000 EXP</strong> untuk naik
-                level ke rank selanjutnya!
-              </p>
             </div>
           </div>
 
-          <div className="bg-slate-900 rounded-3xl border border-slate-800 shadow-xl p-6 relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-4 opacity-10">
-              <Coins size={100} className="text-amber-400" />
-            </div>
-
-            <div className="flex items-center justify-between mb-6 relative z-10">
+          {/* CARD NUSA POINTS */}
+          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
               <div>
-                <p className="text-[10px] font-black tracking-widest uppercase text-slate-400 mb-0.5">
-                  Saldo Reward
+                <p className="text-[9px] font-black tracking-widest uppercase text-slate-400 mb-0.5">
+                  Saldo Belanja
                 </p>
-                <h3 className="text-lg font-black text-white">Nusa Points</h3>
+                <h3 className="text-sm font-bold text-slate-900">
+                  Nusa Points
+                </h3>
               </div>
-              <div className="w-12 h-12 rounded-2xl bg-amber-500 flex items-center justify-center shadow-lg shadow-amber-500/30">
-                <Coins size={24} className="text-amber-900" />
+              <div className="p-2 bg-slate-100 border border-slate-200 rounded-lg text-slate-900">
+                <Coins size={16} strokeWidth={2.5} />
               </div>
             </div>
-
-            <div className="mb-2 relative z-10">
-              {/* 🔥 TAMPILAN POIN SUDAH AMAN DARI NaN */}
-              <h2 className="text-4xl font-black text-amber-400">
-                {new Intl.NumberFormat("id-ID").format(currentPoints)}{" "}
-                <span className="text-lg text-slate-500">Pts</span>
-              </h2>
-            </div>
-
-            <p className="text-xs text-slate-400 font-medium relative z-10">
-              Tukar poin ini untuk membeli kelas Premium secara gratis.
-            </p>
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+              {new Intl.NumberFormat("id-ID").format(currentPoints)}{" "}
+              <span className="text-xs font-bold text-slate-400 uppercase">
+                Pts
+              </span>
+            </h2>
           </div>
 
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
-            <div className="flex items-center gap-4 p-3 bg-slate-50 rounded-2xl border border-slate-100">
-              <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center shadow-sm">
-                <IdCard size={16} className="text-slate-500" />
+          {/* CARD TRACKING ID (Anti Jitter Layout) */}
+          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-3.5">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-600 shrink-0 shadow-sm">
+                <IdCard size={14} />
               </div>
               <div>
-                <p className="text-[10px] uppercase font-black tracking-widest text-slate-400">
-                  Student ID
+                <p className="text-[9px] uppercase font-bold tracking-widest text-slate-400 leading-none">
+                  Nomor Induk Mahasiswa
                 </p>
-                <h4 className="font-bold text-slate-800 text-sm">
+                <h4 className="font-bold text-slate-800 text-xs mt-1">
                   {formData.nim_nip || "-"}
                 </h4>
               </div>
             </div>
 
-            <div className="flex items-center gap-4 p-3 bg-slate-50 rounded-2xl border border-slate-100">
-              <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center shadow-sm">
-                <Briefcase size={16} className="text-slate-500" />
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-600 shrink-0 shadow-sm">
+                <Briefcase size={14} />
               </div>
               <div>
-                <p className="text-[10px] uppercase font-black tracking-widest text-slate-400">
-                  Profession
+                <p className="text-[9px] uppercase font-bold tracking-widest text-slate-400 leading-none">
+                  Fokus Keahlian
                 </p>
-                <h4 className="font-bold text-slate-800 text-sm">
+                <h4 className="font-bold text-slate-800 text-xs mt-1">
                   {formData.profession || "-"}
                 </h4>
               </div>
@@ -418,32 +390,34 @@ const ProfileStudent = () => {
           </div>
         </div>
 
-        <div className="xl:col-span-2">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 bg-slate-50/50">
+        {/* GRID KANAN: PENGATURAN BIODATA PROFILE */}
+        <div className="lg:col-span-2">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/50">
               <div>
-                <h3 className="text-lg font-black text-slate-900">
-                  Pengaturan Profil
+                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                  Pengaturan Biodata
                 </h3>
-                <p className="text-sm text-slate-500 mt-1 font-medium">
-                  Kelola informasi akun dan biodata profilmu
+                <p className="text-[10px] text-slate-400 font-medium mt-0.5">
+                  Kelola informasi otentik akun belajar Anda.
                 </p>
               </div>
 
               {!isEditing && (
                 <button
                   onClick={() => setIsEditing(true)}
-                  className="btn btn-sm bg-white border border-slate-200 hover:border-slate-800 hover:bg-slate-50 rounded-xl text-slate-700 font-bold px-4"
+                  className="bg-white border border-slate-200 hover:border-slate-900 text-slate-700 font-bold text-xs px-4 py-2 rounded-lg transition-colors shadow-sm cursor-pointer"
                 >
-                  <Edit3 size={14} /> Edit Data
+                  <Edit3 size={12} className="inline mr-1" /> Edit Data
                 </button>
               )}
             </div>
 
-            <div className="p-6 md:p-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* FORM FIELD AREA */}
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block mb-2 text-[10px] uppercase tracking-widest font-black text-slate-500">
+                  <label className="block mb-2 text-[10px] uppercase tracking-widest font-bold text-slate-500">
                     Nama Lengkap
                   </label>
                   <input
@@ -453,17 +427,17 @@ const ProfileStudent = () => {
                       setFormData({ ...formData, name: e.target.value })
                     }
                     disabled={!isEditing}
-                    className={`input input-bordered w-full rounded-2xl bg-slate-50 border-slate-200 font-bold text-slate-800 focus:bg-white focus:border-slate-800 transition-colors ${errors.name ? "border-red-400" : ""}`}
+                    className={`w-full px-3 py-2 bg-slate-50 border border-slate-200 focus:bg-white focus:border-slate-900 rounded-lg text-xs font-semibold outline-none transition-colors ${errors.name ? "border-rose-400 focus:border-rose-500" : ""}`}
                   />
                   {errors.name && (
-                    <p className="mt-2 text-xs text-red-500 font-bold">
+                    <p className="mt-1 text-[10px] text-rose-500 font-bold">
                       {errors.name}
                     </p>
                   )}
                 </div>
 
                 <div>
-                  <label className="block mb-2 text-[10px] uppercase tracking-widest font-black text-slate-500">
+                  <label className="block mb-2 text-[10px] uppercase tracking-widest font-bold text-slate-500">
                     NIM / Student ID
                   </label>
                   <input
@@ -473,12 +447,12 @@ const ProfileStudent = () => {
                       setFormData({ ...formData, nim_nip: e.target.value })
                     }
                     disabled={!isEditing}
-                    className="input input-bordered w-full rounded-2xl bg-slate-50 border-slate-200 font-bold text-slate-800 focus:bg-white focus:border-slate-800 transition-colors"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 focus:bg-white focus:border-slate-900 rounded-lg text-xs font-semibold outline-none transition-colors"
                   />
                 </div>
 
-                <div className="md:col-span-2">
-                  <label className="block mb-2 text-[10px] uppercase tracking-widest font-black text-slate-500">
+                <div className="sm:col-span-2">
+                  <label className="block mb-2 text-[10px] uppercase tracking-widest font-bold text-slate-500">
                     Bidang Fokus / Keahlian
                   </label>
                   <input
@@ -488,13 +462,13 @@ const ProfileStudent = () => {
                       setFormData({ ...formData, profession: e.target.value })
                     }
                     disabled={!isEditing}
-                    placeholder="Frontend Engineer, Backend Developer..."
-                    className="input input-bordered w-full rounded-2xl bg-slate-50 border-slate-200 font-bold text-slate-800 focus:bg-white focus:border-slate-800 transition-colors"
+                    placeholder="Contoh: Frontend Engineer, Android Developer"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 focus:bg-white focus:border-slate-900 rounded-lg text-xs font-semibold outline-none transition-colors"
                   />
                 </div>
 
-                <div className="md:col-span-2">
-                  <label className="block mb-2 text-[10px] uppercase tracking-widest font-black text-slate-500">
+                <div className="sm:col-span-2">
+                  <label className="block mb-2 text-[10px] uppercase tracking-widest font-bold text-slate-500">
                     Bio Singkat
                   </label>
                   <textarea
@@ -504,36 +478,37 @@ const ProfileStudent = () => {
                     }
                     disabled={!isEditing}
                     rows="4"
-                    placeholder="Ceritakan sedikit tentang dirimu..."
-                    className="textarea textarea-bordered w-full rounded-2xl bg-slate-50 border-slate-200 font-medium text-slate-800 focus:bg-white focus:border-slate-800 transition-colors resize-none text-base"
+                    placeholder="Ceritakan deskripsi pendek mengenai dirimu..."
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 focus:bg-white focus:border-slate-900 rounded-lg text-xs font-medium outline-none transition-colors h-24 resize-none leading-relaxed"
                   />
-                  <div className="flex justify-end mt-2">
-                    <span className="text-xs font-bold text-slate-400">
+                  <div className="flex justify-end mt-1">
+                    <span className="text-[10px] font-bold text-slate-400">
                       {formData.bio.length}/500
                     </span>
                   </div>
                 </div>
               </div>
 
+              {/* ACTION TRIGGER BUTTONS PASS MODE EDIT AKTIF (ANTI JITTER) */}
               {isEditing && (
-                <div className="flex justify-end gap-3 pt-6 mt-6 border-t border-slate-100">
+                <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 animate-in fade-in duration-200">
                   <button
                     onClick={handleCancel}
                     disabled={isSubmitting}
-                    className="btn btn-ghost rounded-xl font-bold hover:bg-slate-100"
+                    className="px-4 py-2 rounded-lg font-bold text-slate-600 hover:bg-slate-50 text-xs uppercase tracking-wider transition-colors cursor-pointer"
                   >
                     Batal
                   </button>
                   <button
                     onClick={handleSave}
                     disabled={isSubmitting}
-                    className="btn bg-slate-900 hover:bg-slate-800 border-none rounded-xl text-white font-bold px-8 shadow-lg"
+                    className="bg-slate-900 hover:bg-slate-800 text-white rounded-lg px-6 py-2 text-xs font-bold uppercase tracking-wider shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
                   >
                     {isSubmitting ? (
-                      <span className="loading loading-spinner loading-sm"></span>
+                      <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                     ) : (
                       <>
-                        <Save size={16} /> Simpan Perubahan
+                        <Save size={14} /> Simpan Perubahan
                       </>
                     )}
                   </button>

@@ -1,14 +1,14 @@
-const AppError = require('../utils/AppError');
+const AppError = require("../utils/AppError");
 
 const uploadFile = async (file, req) => {
   if (!file) {
-    throw new AppError('File tidak ditemukan dalam request', 400);
+    throw new AppError("File tidak ditemukan dalam request", 400);
   }
 
   // --- LOCAL STORAGE STRATEGY ---
   // Kita buat public URL yang bisa diakses oleh Frontend
   // Contoh output: http://localhost:5000/uploads/file-123.jpg
-  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  const baseUrl = `${req.protocol}://${req.get("host")}`;
   const fileUrl = `${baseUrl}/uploads/${file.filename}`;
 
   // --- NANTI JIKA PINDAH KE CLOUDINARY/S3 ---

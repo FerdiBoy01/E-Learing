@@ -26,6 +26,7 @@ import {
   Clock,
   Send,
   X,
+  Zap,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import api from "../../config/axios";
@@ -75,10 +76,35 @@ const CourseDetailStudent = () => {
   const [receiptPreview, setReceiptPreview] = useState("");
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
   const [isRedeemingPoints, setIsRedeemingPoints] = useState(false);
+
+  // 🔥 STATE BARU: Indikator Loading Midtrans
+  const [isProcessingMidtrans, setIsProcessingMidtrans] = useState(false);
+
   const fileInputRef = useRef(null);
   const [inputAccessCode, setInputAccessCode] = useState("");
-
   const readerRef = useRef(null);
+
+  // ==========================================
+  // INJEKSI MIDTRANS SNAP SCRIPT
+  // ==========================================
+  useEffect(() => {
+    // Memasang script Midtrans Snap ke dalam dokumen secara dinamis
+    const snapScriptUrl = "https://app.sandbox.midtrans.com/snap/snap.js";
+    // NOTE: Pastikan lu taruh VITE_MIDTRANS_CLIENT_KEY di .env React lu (contoh: VITE_MIDTRANS_CLIENT_KEY=SB-Mid-client-xxxx)
+    const clientKey =
+      import.meta.env.VITE_MIDTRANS_CLIENT_KEY || "SET_CLIENT_KEY_DI_ENV";
+
+    let scriptTag = document.createElement("script");
+    scriptTag.src = snapScriptUrl;
+    scriptTag.setAttribute("data-client-key", clientKey);
+    scriptTag.async = true;
+
+    document.body.appendChild(scriptTag);
+
+    return () => {
+      document.body.removeChild(scriptTag);
+    };
+  }, []);
 
   // ==========================================
   // FETCH DATA
@@ -152,8 +178,53 @@ const CourseDetailStudent = () => {
     }, [course, completedIds, activeMaterialId]);
 
   // ==========================================
-  // TRANSACTIONS
+  // TRANSACTIONS & PAYMENTS
   // ==========================================
+
+  // 🔥 FUNGSI BARU: AUTO-PAYMENT MIDTRANS
+  const handleMidtransPayment = async () => {
+    setIsProcessingMidtrans(true);
+    try {
+      // 1. Tembak backend untuk generate Token Snap
+      const response = await api.post("/transactions/initiate-midtrans", {
+        course_id: courseId,
+      });
+      const { token } = response.data.data;
+
+      // 2. Tutup modal konvensional
+      document.getElementById("modal_pembayaran").close();
+
+      // 3. Panggil Pop-up Midtrans
+      window.snap.pay(token, {
+        onSuccess: function (result) {
+          toast.success(
+            "💥 Pembayaran Sukses! Selamat datang di Kelas Premium!",
+          );
+          // Reload data karena kelas udah otomatis ke-unlock via Webhook
+          fetchCourseData();
+        },
+        onPending: function (result) {
+          toast.info("Menunggu pembayaran. Silakan selesaikan transaksi Anda.");
+          setHasPendingTransaction(true);
+          fetchCourseData();
+        },
+        onError: function (result) {
+          toast.error("Waduh, pembayaran Anda gagal diproses.");
+        },
+        onClose: function () {
+          toast.error("Anda menutup jendela sebelum menyelesaikan pembayaran.");
+        },
+      });
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message ||
+          "Gagal menginisiasi server pembayaran.",
+      );
+    } finally {
+      setIsProcessingMidtrans(false);
+    }
+  };
+
   const handleKomitmen = async (e) => {
     if (e) e.preventDefault();
     if (
@@ -334,28 +405,34 @@ const CourseDetailStudent = () => {
       setIsSubmittingChallenge(false);
     }
   };
-
   const handleClaimReward = async () => {
     setIsClaiming(true);
     try {
-      const response = await api.get(`/courses/${courseId}/claim-reward`);
+      const response = await api.post(`/courses/${courseId}/claim-reward`);
       const { expGained, pointsGained, newLevel } = response.data.data;
+
       setIsClaimed(true);
       setCompletedDate(new Date().toISOString());
 
       confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
-      if (user)
+
+      if (user) {
         setUser({
           ...user,
-          exp: (Number(user.exp) || 0) + expGained,
-          points: (Number(user.points) || 0) + pointsGained,
-          level: newLevel || user.level,
+          exp: (Number(user.exp) || 0) + Number(expGained || 0),
+          points: (Number(user.points) || 0) + Number(pointsGained || 0),
+          level: Number(newLevel) || user.level,
         });
+      }
 
-      toast.success("Sertifikat digital diterbitkan!");
-      document.getElementById("modal_sertifikat").showModal();
+      toast.success("Sertifikat digital berhasil diterbitkan!");
+
+      setTimeout(() => {
+        const modal = document.getElementById("modal_sertifikat");
+        if (modal) modal.showModal();
+      }, 300);
     } catch (error) {
-      toast.error("Gagal klaim sertifikat.");
+      toast.error(error.response?.data?.message || "Gagal klaim sertifikat.");
     } finally {
       setIsClaiming(false);
     }
@@ -396,7 +473,6 @@ const CourseDetailStudent = () => {
     );
 
   return (
-    // Memaksa layar utama mengunci tinggi scroll global agar dual-scroll aktif di bawahnya
     <div className="max-w-[1500px] mx-auto font-sans pt-2 px-4 sm:px-6 lg:px-8 lg:h-[calc(100vh-6rem)] lg:overflow-hidden flex flex-col">
       <div className="shrink-0">
         <Link
@@ -407,11 +483,8 @@ const CourseDetailStudent = () => {
         </Link>
       </div>
 
-      {/* ================================================= */}
-      {/* DOUBLE-SCROLL SPLIT INTERFACE                     */}
-      {/* ================================================= */}
       <div className="flex flex-col lg:flex-row gap-6 items-stretch flex-1 min-h-0 mb-6">
-        {/* 🔥 KIRI: INDEPENDENT SCROLL SILABUS & ACCORDION (Efek Kaca Diperjelas) */}
+        {/* 🔥 KIRI: INDEPENDENT SCROLL SILABUS & ACCORDION */}
         <div className="w-full lg:w-[360px] shrink-0 flex flex-col gap-4 lg:h-full lg:overflow-y-auto hide-scrollbar p-0.5">
           {/* Info Utama Kelas */}
           <div className="p-5 rounded-xl bg-slate-950 text-white shadow-md border border-slate-900 shrink-0">
@@ -514,7 +587,7 @@ const CourseDetailStudent = () => {
             </div>
           )}
 
-          {/* Accordion List Silabus (Scroll Mandiri di Kiri) */}
+          {/* Accordion List Silabus */}
           <div className="bg-white/70 backdrop-blur-xl border border-white/50 rounded-xl shadow-sm overflow-hidden flex flex-col flex-1 min-h-[250px]">
             <div className="p-3 border-b border-slate-200/50 bg-slate-50/50 shrink-0">
               <h3 className="font-bold text-[11px] text-slate-800 uppercase tracking-wider">
@@ -599,7 +672,7 @@ const CourseDetailStudent = () => {
           </div>
         </div>
 
-        {/* 🔥 KANAN: INDEPENDENT SCROLL AREA MEMBACA (Scroll Mandiri di Kanan) */}
+        {/* 🔥 KANAN: INDEPENDENT SCROLL AREA MEMBACA */}
         <div
           ref={readerRef}
           className="flex-1 w-full bg-white border border-slate-200 rounded-xl shadow-sm lg:h-full lg:overflow-y-auto flex flex-col relative"
@@ -769,113 +842,19 @@ const CourseDetailStudent = () => {
                 ) : (
                   <div className="material-html-content w-full text-slate-800">
                     <style>{`
-                      /* === 0. FIX RESPONSIVE & RATA KANAN-KIRI GLOBAL === */
-                      .material-html-content {
-                        word-wrap: break-word !important;
-                        overflow-wrap: break-word !important;
-                        word-break: break-word !important;
-                        white-space: normal !important;
-                      }
-
-                      /* === 1. Gaya Paragraf (Auto Justify & Anti-Scroll) === */
-                      .material-html-content p { 
-                        color: #334155; 
-                        line-height: 1.8; 
-                        margin-bottom: 1.25rem; 
-                        font-size: 0.95rem;
-                        text-align: justify; /* 🔥 Teks rata kanan-kiri biar rapi */
-                        white-space: normal !important;
-                        word-break: break-word !important;
-                      }
-                      
-                      /* === 2. Gaya Judul / Headings === */
-                      .material-html-content h1, 
-                      .material-html-content h2, 
-                      .material-html-content h3, 
-                      .material-html-content h4 { 
-                        color: #0f172a; 
-                        font-weight: 700; 
-                        margin-top: 2rem; 
-                        margin-bottom: 0.75rem; 
-                        tracking-tight;
-                        word-break: break-word !important;
-                      }
-                      .material-html-content h1 { font-size: 1.5rem; }
-                      .material-html-content h2 { font-size: 1.3rem; }
-                      .material-html-content h3 { font-size: 1.15rem; }
-
-                      /* === 3. List Nomor dan Bullet Poin === */
-                      .material-html-content ul { 
-                        list-style-type: disc !important; 
-                        padding-left: 1.5rem !important; 
-                        margin-bottom: 1.25rem !important; 
-                      }
-                      .material-html-content ol { 
-                        list-style-type: decimal !important; 
-                        padding-left: 1.5rem !important; 
-                        margin-bottom: 1.25rem !important; 
-                      }
-                      .material-html-content li { 
-                        margin-bottom: 0.5rem !important; 
-                        color: #334155;
-                        font-size: 0.95rem;
-                        word-break: break-word !important;
-                      }
-
-                      /* === 4. Struktur & Garis Tabel (Responsive) === */
-                      .material-html-content table {
-                        width: 100% !important;
-                        margin: 1.75rem 0 !important;
-                        border-collapse: collapse !important;
-                        font-size: 0.90rem !important;
-                        border: 1px solid #e2e8f0 !important;
-                        background-color: #ffffff;
-                        display: block !important; /* 🔥 Bikin tabel bisa di-scroll tersendiri kalau kepanjangan */
-                        overflow-x: auto !important;
-                      }
-                      .material-html-content th, .material-html-content td {
-                        border: 1px solid #cbd5e1 !important;
-                        padding: 10px 14px !important;
-                        text-align: left;
-                        min-width: 100px;
-                      }
-                      .material-html-content th {
-                        background-color: #f8fafc !important;
-                        font-weight: 700 !important;
-                        color: #0f172a !important;
-                      }
-
-                      /* === 5. Blok Kode Kodingan Keren === */
-                      .material-html-content code:not(pre code) {
-                        background-color: #f1f5f9 !important;
-                        color: #6366f1 !important;
-                        padding: 2px 6px !important;
-                        border-radius: 4px !important;
-                        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace !important;
-                        font-size: 0.85em !important;
-                        font-weight: 600 !important;
-                        border: 1px solid #e2e8f0 !important;
-                      }
-
-                      .material-html-content .ql-syntax, 
-                      .material-html-content pre {
-                        background: #0f172a !important; 
-                        color: #f8fafc !important;
-                        padding: 2.5rem 1.25rem 1.25rem !important; 
-                        border-radius: 0.75rem !important;
-                        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important; 
-                        font-size: 0.85rem !important;
-                        line-height: 1.6 !important; 
-                        overflow-x: auto !important; /* 🔥 Khusus codingan biarin bisa scroll kanan kalau panjang biar ga rusak baris kodenya */
-                        position: relative !important; 
-                        margin: 1.75rem 0 !important;
-                        border: 1px solid #1e293b !important;
-                      }
-
-                      .material-html-content .ql-syntax::before,
-                      .material-html-content pre::before {
-                        content: ''; position: absolute; top: 0.9rem; left: 12px; width: 0.55rem; height: 0.55rem; border-radius: 50%; background: #ef4444; box-shadow: 0.9rem 0 0 #f59e0b, 1.8rem 0 0 #10b981;
-                      }
+                      .material-html-content { word-wrap: break-word !important; overflow-wrap: break-word !important; word-break: break-word !important; white-space: normal !important; }
+                      .material-html-content p { color: #334155; line-height: 1.8; margin-bottom: 1.25rem; font-size: 0.95rem; text-align: justify; white-space: normal !important; word-break: break-word !important; }
+                      .material-html-content h1, .material-html-content h2, .material-html-content h3, .material-html-content h4 { color: #0f172a; font-weight: 700; margin-top: 2rem; margin-bottom: 0.75rem; word-break: break-word !important; }
+                      .material-html-content h1 { font-size: 1.5rem; } .material-html-content h2 { font-size: 1.3rem; } .material-html-content h3 { font-size: 1.15rem; }
+                      .material-html-content ul { list-style-type: disc !important; padding-left: 1.5rem !important; margin-bottom: 1.25rem !important; }
+                      .material-html-content ol { list-style-type: decimal !important; padding-left: 1.5rem !important; margin-bottom: 1.25rem !important; }
+                      .material-html-content li { margin-bottom: 0.5rem !important; color: #334155; font-size: 0.95rem; word-break: break-word !important; }
+                      .material-html-content table { width: 100% !important; margin: 1.75rem 0 !important; border-collapse: collapse !important; font-size: 0.90rem !important; border: 1px solid #e2e8f0 !important; background-color: #ffffff; display: block !important; overflow-x: auto !important; }
+                      .material-html-content th, .material-html-content td { border: 1px solid #cbd5e1 !important; padding: 10px 14px !important; text-align: left; min-width: 100px; }
+                      .material-html-content th { background-color: #f8fafc !important; font-weight: 700 !important; color: #0f172a !important; }
+                      .material-html-content code:not(pre code) { background-color: #f1f5f9 !important; color: #6366f1 !important; padding: 2px 6px !important; border-radius: 4px !important; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace !important; font-size: 0.85em !important; font-weight: 600 !important; border: 1px solid #e2e8f0 !important; }
+                      .material-html-content .ql-syntax, .material-html-content pre { background: #0f172a !important; color: #f8fafc !important; padding: 2.5rem 1.25rem 1.25rem !important; border-radius: 0.75rem !important; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important; font-size: 0.85rem !important; line-height: 1.6 !important; overflow-x: auto !important; position: relative !important; margin: 1.75rem 0 !important; border: 1px solid #1e293b !important; }
+                      .material-html-content .ql-syntax::before, .material-html-content pre::before { content: ''; position: absolute; top: 0.9rem; left: 12px; width: 0.55rem; height: 0.55rem; border-radius: 50%; background: #ef4444; box-shadow: 0.9rem 0 0 #f59e0b, 1.8rem 0 0 #10b981; }
                     `}</style>
                     <div
                       dangerouslySetInnerHTML={{
@@ -899,7 +878,6 @@ const CourseDetailStudent = () => {
                 >
                   <ChevronLeft size={14} /> Kembali
                 </button>
-
                 <div className="flex-1 flex justify-center">
                   {!completedIds.includes(activeMaterialId) ? (
                     activeMaterialData.type !== "CHALLENGE" && (
@@ -923,7 +901,6 @@ const CourseDetailStudent = () => {
                     </span>
                   )}
                 </div>
-
                 <button
                   onClick={() =>
                     nextMaterialId && handleSelectMaterial(nextMaterialId)
@@ -940,7 +917,7 @@ const CourseDetailStudent = () => {
       </div>
 
       {/* ================================================= */}
-      {/* MODAL CHECKOUT PEMBAYARAN MANUAL/POIN             */}
+      {/* MODAL CHECKOUT PEMBAYARAN: REDESAIN MIDTRANS UTAMA */}
       {/* ================================================= */}
       <dialog
         id="modal_pembayaran"
@@ -958,7 +935,8 @@ const CourseDetailStudent = () => {
               </button>
             </form>
           </div>
-          <form onSubmit={handlePaymentSubmit} className="p-5 space-y-4">
+
+          <div className="p-5 space-y-4">
             <div className="bg-slate-900 rounded-lg p-4 flex justify-between items-center text-white">
               <div>
                 <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">
@@ -972,6 +950,29 @@ const CourseDetailStudent = () => {
                 <DollarSign size={16} />
               </div>
             </div>
+
+            {/* 🔥 OPSI 1: PEMBAYARAN INSTAN (MIDTRANS) - REKOMENDASI UTAMA */}
+            <div className="space-y-1.5">
+              <p className="text-[9px] font-bold text-indigo-600 uppercase tracking-widest flex items-center gap-1">
+                <Zap size={10} /> Rekomendasi
+              </p>
+              <button
+                onClick={handleMidtransPayment}
+                disabled={isProcessingMidtrans}
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-3 font-bold text-xs uppercase tracking-wider shadow-md disabled:bg-slate-200 disabled:text-slate-400 transition-colors flex items-center justify-center gap-2"
+              >
+                {isProcessingMidtrans ? (
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>Beli Instan (Otomatis)</>
+                )}
+              </button>
+              <p className="text-[9px] text-center text-slate-400 font-semibold mt-1">
+                Mendukung GoPay, ShopeePay, VA BCA, Mandiri, dll.
+              </p>
+            </div>
+
+            {/* OPSI 2: BAYAR PAKAI POIN GAMIFIKASI */}
             <div className="bg-slate-50 border border-slate-200 p-4 rounded-lg flex flex-col gap-2 shadow-inner">
               <div className="flex justify-between items-center">
                 <div>
@@ -1010,80 +1011,85 @@ const CourseDetailStudent = () => {
                 </p>
               )}
             </div>
+
             <div className="relative flex py-1 items-center">
               <div className="flex-grow border-t border-slate-200"></div>
               <span className="flex-shrink mx-3 text-[9px] text-slate-400 font-bold uppercase tracking-widest">
-                Atau Transfer Manual
+                Atau Upload Manual
               </span>
               <div className="flex-grow border-t border-slate-200"></div>
             </div>
-            <div className="space-y-1.5">
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                1. Rekening Tujuan Transfer
-              </p>
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs font-semibold space-y-1">
-                <div className="flex justify-between border-b border-slate-200/50 pb-1 text-slate-700">
-                  <span>BCA</span>
-                  <span className="font-mono font-bold text-slate-900">
-                    123-4567-890
-                  </span>
-                </div>
-                <div className="flex justify-between border-b border-slate-200/50 pb-1 text-slate-700">
-                  <span>Mandiri</span>
-                  <span className="font-mono font-bold text-slate-900">
-                    098-7654-321
-                  </span>
-                </div>
-                <p className="text-[10px] text-slate-500 pt-1">
-                  A/N:{" "}
-                  <span className="text-slate-800 font-bold">
-                    Ferdi Pratama Setia
-                  </span>
+
+            {/* OPSI 3: TRANSFER MANUAL (FALLBACK) */}
+            <form onSubmit={handlePaymentSubmit} className="space-y-4">
+              <div className="space-y-1.5">
+                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                  1. Rekening Tujuan Transfer
                 </p>
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                2. Unggah Slip Gambar Bukti
-              </p>
-              <div
-                className="border-2 border-dashed border-slate-300 rounded-lg p-4 text-center hover:bg-slate-50 cursor-pointer bg-white"
-                onClick={() => fileInputRef.current.click()}
-              >
-                {receiptPreview ? (
-                  <img
-                    src={receiptPreview}
-                    alt="Bukti Transfer"
-                    className="max-h-20 mx-auto rounded border"
-                  />
-                ) : (
-                  <div className="flex flex-col items-center py-1">
-                    <UploadCloud size={20} className="text-slate-400 mb-1" />
-                    <p className="text-xs font-bold text-slate-700">
-                      Pilih Berkas Slip Transfer
-                    </p>
-                    <p className="text-[9px] text-slate-400">
-                      Format gambar maks 2MB
-                    </p>
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs font-semibold space-y-1">
+                  <div className="flex justify-between border-b border-slate-200/50 pb-1 text-slate-700">
+                    <span>BCA</span>
+                    <span className="font-mono font-bold text-slate-900">
+                      123-4567-890
+                    </span>
                   </div>
-                )}
+                  <div className="flex justify-between border-b border-slate-200/50 pb-1 text-slate-700">
+                    <span>Mandiri</span>
+                    <span className="font-mono font-bold text-slate-900">
+                      098-7654-321
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 pt-1">
+                    A/N:{" "}
+                    <span className="text-slate-800 font-bold">
+                      Ferdi Pratama Setia
+                    </span>
+                  </p>
+                </div>
               </div>
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                ref={fileInputRef}
-                onChange={handleReceiptChange}
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={isSubmittingPayment || !receiptFile}
-              className="w-full bg-slate-950 hover:bg-slate-800 text-white rounded-lg py-2.5 font-bold text-xs uppercase tracking-wider shadow-md disabled:bg-slate-200 disabled:text-slate-400 transition-colors"
-            >
-              {isSubmittingPayment ? "Mengirim..." : "Kirim Pembayaran"}
-            </button>
-          </form>
+              <div className="space-y-1.5">
+                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                  2. Unggah Slip Gambar Bukti
+                </p>
+                <div
+                  className="border-2 border-dashed border-slate-300 rounded-lg p-4 text-center hover:bg-slate-50 cursor-pointer bg-white"
+                  onClick={() => fileInputRef.current.click()}
+                >
+                  {receiptPreview ? (
+                    <img
+                      src={receiptPreview}
+                      alt="Bukti Transfer"
+                      className="max-h-20 mx-auto rounded border"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center py-1">
+                      <UploadCloud size={20} className="text-slate-400 mb-1" />
+                      <p className="text-xs font-bold text-slate-700">
+                        Pilih Berkas Slip Transfer
+                      </p>
+                      <p className="text-[9px] text-slate-400">
+                        Format gambar maks 2MB
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  ref={fileInputRef}
+                  onChange={handleReceiptChange}
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={isSubmittingPayment || !receiptFile}
+                className="w-full bg-slate-950 hover:bg-slate-800 text-white rounded-lg py-2.5 font-bold text-xs uppercase tracking-wider shadow-md disabled:bg-slate-200 disabled:text-slate-400 transition-colors"
+              >
+                {isSubmittingPayment ? "Mengirim..." : "Kirim Bukti Manual"}
+              </button>
+            </form>
+          </div>
         </div>
         <form method="dialog" className="modal-backdrop">
           <button>close</button>

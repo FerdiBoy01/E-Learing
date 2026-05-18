@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Mail, Lock, LogIn, BookOpen } from "lucide-react";
+import { Mail, Lock, LogIn, BookOpen, Sun, Moon } from "lucide-react";
 import api from "../../config/axios";
 import useAuthStore from "../../store/authStore";
 import toast from "../../utils/toast";
@@ -10,31 +10,42 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // 🌓 THEME CONTROL ENGINE (Murni & Ringan)
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    return (
+      localStorage.getItem("theme") === "dark" ||
+      (!localStorage.getItem("theme") &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches)
+    );
+  });
+
   const navigate = useNavigate();
   const { setToken, setUser } = useAuthStore();
 
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+    }
+  }, [isDarkMode]);
+
   const handleLogin = async (e) => {
     e.preventDefault();
-
-    if (!email.trim() || !password.trim()) {
-      toast.error("Email dan kata sandi wajib diisi.");
-      return;
-    }
-
-    if (password.length < 6) {
-      toast.error("Kata sandi minimal 6 karakter.");
-      return;
-    }
+    if (!email.trim() || !password.trim())
+      return toast.error("Email dan kata sandi wajib diisi.");
+    if (password.length < 6)
+      return toast.error("Kata sandi minimal 6 karakter.");
 
     setLoading(true);
-
     try {
       const response = await api.post("/auth/login", { email, password });
       const { token, user } = response.data.data;
 
       setToken(token);
       setUser(user);
-
       toast.success(`Selamat datang, ${user.name}.`);
 
       if (user.role === "ADMIN") navigate("/admin");
@@ -48,94 +59,111 @@ const Login = () => {
   };
 
   return (
-    // Background ala macOS (Abu-abu terang dengan subtle orbs di belakang kaca)
-    <div className="min-h-screen flex items-center justify-center bg-[#f5f5f7] relative overflow-hidden font-sans">
-      {/* Subtle Background Orbs */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40vw] h-[40vw] bg-indigo-200/50 rounded-full blur-[100px] pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40vw] h-[40vw] bg-slate-300/50 rounded-full blur-[100px] pointer-events-none" />
+    <div className="min-h-screen flex items-center justify-center bg-[#f5f5f7] dark:bg-[#0B0F19] relative overflow-hidden font-sans transition-colors duration-500 ease-out">
+      {/* 🔮 OPTIMIZED LIGHTWEIGHT BACKDROP GRAPHICS (Gunakan Opacity Rendah Agar Beban GPU Ringan) */}
+      <div className="absolute top-[-10%] left-[-10%] w-[40vw] h-[40vw] bg-indigo-400/10 dark:bg-indigo-500/5 rounded-full blur-[80px] pointer-events-none will-change-transform" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40vw] h-[40vw] bg-slate-400/10 dark:bg-cyan-500/5 rounded-full blur-[80px] pointer-events-none will-change-transform" />
 
-      <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-8 p-6 relative z-10">
-        {/* KIRI - BRANDING (Clean & Tegas) */}
-        <div className="hidden md:flex flex-col justify-center p-8">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center shadow-sm">
-              <BookOpen size={20} className="text-white" />
+      {/* FLOATING FLOATING THEME SWITCHER */}
+      <button
+        onClick={() => setIsDarkMode(!isDarkMode)}
+        className="absolute top-6 right-6 p-2.5 bg-white/60 dark:bg-[#131B2E]/60 border border-white/40 dark:border-white/[0.06] backdrop-blur-md text-slate-800 dark:text-slate-200 rounded-xl shadow-xs transition-all duration-300 hover:scale-105 active:scale-95"
+      >
+        {isDarkMode ? (
+          <Sun size={16} strokeWidth={2.5} />
+        ) : (
+          <Moon size={16} strokeWidth={2.5} />
+        )}
+      </button>
+
+      <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-8 p-6 relative z-10 items-center">
+        {/* KIRI - BRANDING (Clean & Premium Typography Hierarchy) */}
+        <div className="hidden md:flex flex-col justify-center p-8 transition-all">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-9 h-9 bg-indigo-600 dark:bg-indigo-500 rounded-lg flex items-center justify-center shadow-xs">
+              <BookOpen size={18} className="text-white" strokeWidth={2.5} />
             </div>
-            <span className="text-2xl font-bold tracking-tight text-slate-900">
+            <span className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
               NusaLearn
             </span>
           </div>
-          <h1 className="text-4xl font-bold mb-4 leading-tight text-slate-900 tracking-tight">
+          <h1 className="text-4xl font-black mb-4 leading-tight text-slate-900 dark:text-slate-50 tracking-tight">
             Portal Edukasi <br /> Profesional.
           </h1>
-          <p className="text-slate-600 text-base leading-relaxed">
+          <p className="text-slate-500 dark:text-slate-400 text-sm font-medium leading-relaxed max-w-sm">
             Akses ribuan materi pembelajaran berstandar industri. Tingkatkan
             kompetensi dan bangun portofolio karir Anda hari ini.
           </p>
         </div>
 
-        {/* KANAN - FORM LOGIN (Glassmorphism Apple Style) */}
+        {/* KANAN - FORM LOGIN (Tactile Glassmorphism Card Style) */}
         <div className="w-full flex items-center justify-center">
-          <div className="w-full max-w-sm bg-white/70 backdrop-blur-2xl border border-white/50 rounded-xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+          <div className="w-full max-w-sm bg-white/60 dark:bg-[#131B2E]/60 backdrop-blur-md border border-white/40 dark:border-white/[0.06] rounded-xl p-8 shadow-[0_4px_30px_rgba(0,0,0,0.02)] transition-all duration-500">
+            <div className="mb-6">
+              <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
                 Masuk
               </h2>
-              <p className="text-sm text-slate-500 mt-1">
-                Masukkan kredensial akun Anda.
+              <p className="text-xs text-slate-400 font-medium mt-1">
+                Masukkan kredensial akun terdaftar Anda.
               </p>
             </div>
 
-            <form onSubmit={handleLogin} className="space-y-5">
+            <form onSubmit={handleLogin} className="space-y-4.5">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5">
                   Email
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Mail size={16} className="text-slate-400" />
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <Mail
+                      size={14}
+                      className="text-slate-400 dark:text-slate-500"
+                    />
                   </div>
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-10 pr-3 py-2.5 bg-white/50 border border-slate-200 focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg text-sm text-slate-900 outline-none transition-all"
+                    className="w-full pl-10 pr-4 py-2.5 bg-white/40 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-600 dark:focus:border-indigo-500 rounded-lg text-xs font-semibold text-slate-900 dark:text-slate-100 outline-none transition-all duration-200"
                     placeholder="nama@instansi.ac.id"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5">
                   Kata Sandi
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Lock size={16} className="text-slate-400" />
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <Lock
+                      size={14}
+                      className="text-slate-400 dark:text-slate-500"
+                    />
                   </div>
                   <input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-10 pr-3 py-2.5 bg-white/50 border border-slate-200 focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg text-sm text-slate-900 outline-none transition-all"
+                    className="w-full pl-10 pr-4 py-2.5 bg-white/40 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-600 dark:focus:border-indigo-500 rounded-lg text-xs font-semibold text-slate-900 dark:text-slate-100 outline-none transition-all duration-200"
                     placeholder="••••••••"
                   />
                 </div>
               </div>
 
-              <div className="flex items-center justify-between mt-2">
-                <label className="flex items-center gap-2 cursor-pointer">
+              <div className="flex items-center justify-between pt-1">
+                <label className="flex items-center gap-2 cursor-pointer group">
                   <input
                     type="checkbox"
-                    className="w-3.5 h-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    className="w-3.5 h-3.5 rounded-sm border-slate-300 dark:border-slate-700 text-indigo-600 dark:text-indigo-500 focus:ring-0 cursor-pointer bg-white/50 dark:bg-slate-900/50"
                   />
-                  <span className="text-xs font-medium text-slate-600">
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 transition-colors group-hover:text-slate-800 dark:group-hover:text-slate-200">
                     Ingat saya
                   </span>
                 </label>
                 <a
                   href="#"
-                  className="text-xs font-medium text-indigo-600 hover:text-indigo-700"
+                  className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
                 >
                   Lupa sandi?
                 </a>
@@ -144,23 +172,23 @@ const Login = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-slate-900 hover:bg-slate-800 text-white rounded-lg h-10 font-semibold text-sm transition-colors flex items-center justify-center gap-2"
+                className="w-full mt-2 bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 dark:hover:bg-white text-white dark:text-slate-950 rounded-lg h-10 font-bold text-xs uppercase tracking-wider shadow-sm transition-all duration-200 flex items-center justify-center gap-2 transform active:scale-[0.98] disabled:opacity-50"
               >
                 {loading ? (
-                  <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                  <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <>
-                    <LogIn size={16} /> Lanjutkan
+                    <LogIn size={14} strokeWidth={2.5} /> Lanjutkan
                   </>
                 )}
               </button>
             </form>
 
-            <div className="mt-6 text-center text-xs font-medium text-slate-500">
+            <div className="mt-6 text-center text-xs font-semibold text-slate-400 dark:text-slate-500">
               Belum terdaftar?{" "}
               <Link
                 to="/register"
-                className="text-indigo-600 hover:text-indigo-700 font-semibold"
+                className="text-indigo-600 dark:text-indigo-400 font-bold hover:underline"
               >
                 Buat Akun
               </Link>

@@ -1,7 +1,7 @@
 const courseService = require("../services/course.service");
 const { sendSuccess } = require("../utils/responseHandler");
 const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient(); // Hanya dipake buat claimReward/checkEnrollment sisaan
+const prisma = new PrismaClient();
 
 const createCourse = async (req, res, next) => {
   try {
@@ -38,7 +38,6 @@ const getCourseById = async (req, res, next) => {
 
 const updateCourse = async (req, res, next) => {
   try {
-    // 🔥 Tambahin tangkapan buat reward_points dan reward_exp
     const {
       title,
       description,
@@ -58,7 +57,6 @@ const updateCourse = async (req, res, next) => {
     if (price !== undefined) updateData.price = parseInt(price);
     if (type !== undefined) updateData.type = type;
 
-    // 🔥 Masukin ke updateData biar tersimpan di database
     if (reward_points !== undefined)
       updateData.reward_points = parseInt(reward_points);
     if (reward_exp !== undefined) updateData.reward_exp = parseInt(reward_exp);
@@ -83,9 +81,6 @@ const deleteCourse = async (req, res, next) => {
   }
 };
 
-// ==========================================
-// CEK STATUS & KLAIM EXP (GAMIFICATION ENGINE)
-// ==========================================
 const checkEnrollmentStatus = async (req, res, next) => {
   try {
     const { id: courseId } = req.params;
@@ -112,7 +107,6 @@ const claimReward = async (req, res, next) => {
     const { id: courseId } = req.params;
     const studentId = req.user.id;
 
-    // Ambil data enrollment beserta data course-nya (biar dapet nominal reward_exp & points)
     const enrollment = await prisma.enrollment.findUnique({
       where: {
         student_id_course_id: { student_id: studentId, course_id: courseId },
@@ -131,22 +125,18 @@ const claimReward = async (req, res, next) => {
 
     const student = await prisma.user.findUnique({ where: { id: studentId } });
 
-    // Tarik hadiah dari pengaturan kelas (Kalau kosong, defaultnya 500 EXP, 0 Points)
     const expGained = enrollment.course.reward_exp || 500;
     const pointsGained = enrollment.course.reward_points || 0;
 
-    // 🔥 LOGIKA LEVELING RPG (Tiap 1000 EXP Naik Level)
     const totalExp = student.exp + expGained;
-    const newLevel = Math.floor(totalExp / 1000) + 1; // Rumus: 0-999 = Lvl 1 | 1000-1999 = Lvl 2 | dst...
+    const newLevel = Math.floor(totalExp / 1000) + 1;
     const isLevelUp = newLevel > student.level;
 
     await prisma.$transaction([
-      // 1. Tandai kelas lulus
       prisma.enrollment.update({
         where: { id: enrollment.id },
         data: { is_completed: true, completed_at: new Date() },
       }),
-      // 2. Suntik EXP, Poin, dan update Level mahasiswa
       prisma.user.update({
         where: { id: studentId },
         data: {
@@ -168,20 +158,14 @@ const claimReward = async (req, res, next) => {
   }
 };
 
-// 🔥 TAMBAHAN BARU: Buat narik daftar materi eceran
 const getMyUnlockedMaterials = async (req, res, next) => {
   try {
     const userId = req.user.id;
-
-    // Cari semua histori eceran milik user ini
     const unlockedList = await prisma.materialUnlock.findMany({
       where: { user_id: userId },
       select: { material_id: true },
     });
-
-    // Ubah formatnya jadi array ID aja biar frontend gampang bacanya
     const unlockedIds = unlockedList.map((item) => item.material_id);
-
     return sendSuccess(
       res,
       200,
@@ -189,6 +173,81 @@ const getMyUnlockedMaterials = async (req, res, next) => {
       unlockedIds,
     );
   } catch (error) {
+    next(error);
+  }
+};
+
+// =========================================================================
+// 🔥 FITUR BARU 1: Ambil Daftar Kelas Milik Pengajar (Lecturer/Creator)
+// =========================================================================
+const getLecturerCourses = async (req, res, next) => {
+  try {
+    const lecturerId = req.user.id;
+
+    // Pakai query raw biar kebal bypass skema prisma local lu yang nyangkut cache
+    const courses = await prisma.$queryRawUnsafe(
+      `SELECT id, title, description, thumbnail_url, status, is_published, visibility, type, price, takedown_reason, created_at 
+       FROM courses 
+       WHERE lecturer_id = $1 
+       ORDER BY created_at DESC`,
+      lecturerId,
+    );
+
+    return sendSuccess(
+      res,
+      200,
+      "Daftar kurikulum internal pengajar berhasil diambil",
+      courses,
+    );
+  } catch (error) {
+    console.error("Gagal get lecturer courses:", error);
+    next(error);
+  }
+};
+
+// =========================================================================
+// 🔥 FITUR BARU 2: Ambil Semua Notifikasi Milik User (Lonceng Notif)
+// =========================================================================
+const getMyNotifications = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+
+    // Pakai query raw untuk menerobos tabel notifications buatan force-migrate tadi
+    const notifications = await prisma.$queryRawUnsafe(
+      `SELECT id, title, message, is_read, created_at 
+       FROM notifications 
+       WHERE user_id = $1 
+       ORDER BY created_at DESC`,
+      userId,
+    );
+
+    return sendSuccess(
+      res,
+      200,
+      "Daftar notifikasi berhasil diambil",
+      notifications,
+    );
+  } catch (error) {
+    console.error("Gagal get notifications:", error);
+    next(error);
+  }
+};
+
+const readNotification = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // Eksekusi SQL murni biar aman dari drama cache skema prisma local lu
+    await prisma.$executeRawUnsafe(
+      `UPDATE notifications 
+       SET is_read = true 
+       WHERE id = $1`,
+      id,
+    );
+
+    return sendSuccess(res, 200, "Notifikasi berhasil ditandai telah dibaca!");
+  } catch (error) {
+    console.error("Gagal membaca notifikasi:", error);
     next(error);
   }
 };
@@ -201,5 +260,8 @@ module.exports = {
   deleteCourse,
   checkEnrollmentStatus,
   claimReward,
-  getMyUnlockedMaterials, // 🔥 Jangan lupa tambahin ini di export!
+  getMyUnlockedMaterials,
+  getLecturerCourses, // 🔥 Daftarkan export baru
+  getMyNotifications, // 🔥 Daftarkan export baru
+  readNotification,
 };

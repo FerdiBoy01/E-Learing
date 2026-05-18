@@ -10,39 +10,39 @@ const generateToken = (id, role) => {
 };
 
 const register = async (data) => {
-  // 1. Cek apakah email sudah terdaftar
   const existingUser = await userRepository.findUserByEmail(data.email);
   if (existingUser) {
     throw new AppError("Email sudah terdaftar", 400);
   }
 
-  // 2. Hash password
   const salt = await bcrypt.genSalt(10);
   const hashedPassword = await bcrypt.hash(data.password, salt);
 
-  // 🔥 3. FIX: Buang 'password' mentah dari object data biar Prisma nggak ngamuk
   const { password, ...validData } = data;
 
-  // 4. Simpan user ke database
   const newUser = await userRepository.createUser({
-    ...validData, // Sekarang cuma berisi name, email, role, nim_nip
+    ...validData,
     password_hash: hashedPassword,
   });
 
-  // 5. Generate token dengan bawa ID dan Role
   const token = generateToken(newUser.id, newUser.role);
-
-  // Hapus password dari response untuk keamanan
   newUser.password_hash = undefined;
 
   return { user: newUser, token };
 };
 
 const login = async (email, password) => {
-  // ... (KODE LOGIN LU TETAP SAMA KAYAK SEBELUMNYA)
   const user = await userRepository.findUserByEmail(email);
   if (!user) {
     throw new AppError("Email atau password salah", 401);
+  }
+
+  // 🔥 SECURITY LAYER 1: Blokir mutlak jika status akun BANNED!
+  if (user.role === "BANNED") {
+    throw new AppError(
+      "Akses Ditolak! Akun Anda telah dibekukan secara permanen oleh Administrator.",
+      403,
+    );
   }
 
   const isMatch = await bcrypt.compare(password, user.password_hash);

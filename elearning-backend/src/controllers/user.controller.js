@@ -9,13 +9,7 @@ const updateProfile = async (req, res, next) => {
 
     const updatedUser = await prisma.user.update({
       where: { id: userId },
-      data: {
-        name,
-        profession,
-        bio,
-        avatar_url,
-        nim_nip,
-      },
+      data: { name, profession, bio, avatar_url, nim_nip },
       select: {
         id: true,
         name: true,
@@ -26,7 +20,6 @@ const updateProfile = async (req, res, next) => {
         profession: true,
         bio: true,
         exp: true,
-        // 🔥 INI KUNCINYA COY! Daftarin di sini biar kekirim ke Frontend
         level: true,
         points: true,
         balance: true,
@@ -56,7 +49,6 @@ const getMyProfile = async (req, res, next) => {
         profession: true,
         bio: true,
         exp: true,
-        // 🔥 DAN DI SINI JUGA!
         level: true,
         points: true,
         balance: true,
@@ -71,4 +63,67 @@ const getMyProfile = async (req, res, next) => {
   }
 };
 
-module.exports = { updateProfile, getMyProfile };
+const updateUserRole = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { role, is_active } = req.body;
+
+    const updateData = {};
+
+    // 🔥 FIX: Masukin "BANNED" ke dalam daftar array biar gak ditolak controller!
+    if (role) {
+      const validRoles = ["STUDENT", "LECTURER", "CREATOR", "ADMIN", "BANNED"];
+      if (!validRoles.includes(role)) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Role tidak valid!" });
+      }
+      updateData.role = role;
+    }
+
+    if (is_active !== undefined) {
+      updateData.is_active = is_active;
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: id },
+      data: updateData,
+    });
+
+    return sendSuccess(
+      res,
+      200,
+      "Data pengguna berhasil diperbarui dengan aman!",
+      {
+        user: updatedUser,
+      },
+    );
+  } catch (error) {
+    console.error("Gagal mutasi data user:", error);
+    next(error);
+  }
+};
+
+// 🔥 FITUR BARU: Pemusnahan Data Permanen
+const deleteUser = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // Prisma otomatis akan menghapus data berelasi (seperti kelas/transaksi) jika di schema pakai onDelete: Cascade
+    await prisma.user.delete({
+      where: { id: id },
+    });
+
+    return sendSuccess(
+      res,
+      200,
+      "Entitas akun berhasil dimusnahkan secara permanen!",
+    );
+  } catch (error) {
+    console.error("Gagal menghapus data user:", error);
+    next(error);
+  }
+};
+
+// Jangan lupa daftarin deleteUser di sini
+module.exports = { updateProfile, getMyProfile, updateUserRole, deleteUser };

@@ -9,7 +9,7 @@ router.use(protect);
 router.use(restrictTo("ADMIN"));
 
 // ==========================================
-// ENDPOINTS ADMIN
+// ENDPOINTS ADMIN (Users, Courses, Stats)
 // ==========================================
 router.get("/stats", adminController.getDashboardStats);
 router.get("/users", adminController.getAllUsers);
@@ -18,5 +18,15 @@ router.get("/transactions", adminController.getAllTransactions);
 router.post("/users", adminController.createUser);
 router.get("/courses/:id/review", adminController.getCourseDetailForReview);
 router.put("/courses/:id/approve", adminController.approveCourse);
+
+// Rute Takedown/Restore
+router.put("/courses/:id/takedown", adminController.forceTakedownCourse);
+router.put("/courses/:id/restore", adminController.restoreCourse);
+
+// ==========================================
+// 🔥 FITUR BARU: MANAJEMEN PENARIKAN DANA
+// ==========================================
+router.get("/withdrawals", adminController.getAllWithdrawals);
+router.put("/withdrawals/:id/process", adminController.processWithdrawal);
 
 module.exports = router;

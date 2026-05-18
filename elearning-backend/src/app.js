@@ -21,6 +21,7 @@ const userRoutes = require("./routes/user.routes");
 const transactionRoutes = require("./routes/transaction.routes");
 const enrollmentRoutes = require("./routes/enrollment.routes");
 const adminRoutes = require("./routes/admin.routes");
+const withdrawalRoutes = require("./routes/withdrawal.routes");
 
 const app = express();
 
@@ -54,6 +55,7 @@ app.use("/api/transactions", transactionRoutes);
 // 🔥 DAFTARKAN ENDPOINT ENROLLMENT DI SINI
 app.use("/api/enrollments", enrollmentRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/withdrawals", withdrawalRoutes);
 
 // ==============================================
 // 🚨 404 ERROR HANDLER (HARUS DI PALING BAWAH)

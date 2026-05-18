@@ -16,6 +16,7 @@ enum Role {
   LECTURER  // Dosen (Bikin kelas privat dengan access code)
   CREATOR   // Programmer (Bikin kelas publik/jualan)
   ADMIN     // Pengelola NusaLearn
+  BANNED
 }
 
 enum CourseVisibility {
@@ -53,7 +54,6 @@ enum PaymentStatus {
   EXPIRED
 }
 
-// 🔥 TAMBAHAN BARU: Status Kurasi Admin
 enum ApprovalStatus {
   PENDING
   APPROVED
@@ -75,54 +75,54 @@ model User {
   updated_at    DateTime @updatedAt
 
   avatar_url    String?
-  profession    String?  // Contoh: "Senior Web Developer", "Dosen UI"
+  profession    String?  
   bio           String?  @db.Text 
   
-  // 🔥 Fitur Gamifikasi & Saldo Kreator
-  exp           Int      @default(0) // Tabungan EXP mahasiswa
-  level         Int      @default(1) // Level Mahasiswa (Naik tiap kelipatan 1000 EXP)
-  points        Int      @default(0) // Mata uang virtual hasil lulus kelas
-  balance       Int      @default(0) // Saldo penghasilan CREATOR dari jualan kelas
+  // Fitur Gamifikasi & Saldo Kreator
+  exp           Int      @default(0) 
+  level         Int      @default(1) 
+  points        Int      @default(0) 
+  balance       Int      @default(0) 
 
-  courses       Course[] // Kelas yang dibuat (Dosen/Kreator)
-  progress      StudentProgress[]
-  submissions   Submission[]
-  enrollments   Enrollment[]
-  transactions  Transaction[]
-  
-  // 🔥 RELASI BARU: Histori pembelian materi eceran
+  courses          Course[] 
+  progress         StudentProgress[]
+  submissions      Submission[]
+  enrollments      Enrollment[]
+  transactions     Transaction[]
   material_unlocks MaterialUnlock[]
+  notifications    Notification[]
+
+  // 🔥 RELASI BARU: Riwayat penarikan saldo dosen
+  withdrawals      Withdrawal[]
 
   @@map("users")
 }
 
 model Course {
-  id            String           @id @default(uuid())
+  id            String         @id @default(uuid())
   title         String
-  description   String?          @db.Text
+  description   String?        @db.Text
   thumbnail_url String?
   
-  // 🔥 TAMBAHAN BARU: Status Approval QC Admin
-  status        ApprovalStatus   @default(PENDING)
+  status        ApprovalStatus @default(PENDING)
   
-  // Mode Publikasi & Visibilitas
-  is_published  Boolean          @default(false) // True = Rilis, False = Draft
+  takedown_reason String?      @db.Text
+
+  is_published  Boolean        @default(false) 
   visibility    CourseVisibility @default(PUBLIC) 
-  access_code   String?          @unique // Kode token untuk join kelas PRIVATE
+  access_code   String?        @unique 
   
-  // Tipe & Monetisasi
-  type          CourseType       @default(REGULAR)
-  price         Int              @default(0) // Harga IDR asli (0 = Gratis)
+  type          CourseType     @default(REGULAR)
+  price         Int            @default(0) 
   
-  // 🔥 Reward Gamifikasi
-  reward_points Int              @default(0)   // Poin gratis buat modal beli kelas premium
-  reward_exp    Int              @default(500) // EXP yang didapat pas lulus kelas
+  reward_points Int            @default(0)   
+  reward_exp    Int            @default(500) 
   
   lecturer_id   String
-  created_at    DateTime         @default(now())
-  updated_at    DateTime         @updatedAt
+  created_at    DateTime       @default(now())
+  updated_at    DateTime       @updatedAt
 
-  lecturer      User             @relation(fields: [lecturer_id], references: [id])
+  lecturer      User           @relation(fields: [lecturer_id], references: [id])
   chapters      Chapter[]
   enrollments   Enrollment[]
   transactions  Transaction[]
@@ -136,10 +136,14 @@ model Transaction {
   id                String        @id @default(uuid())
   student_id        String
   course_id         String
-  amount            Int           // Harga saat dibeli (bisa harga IDR atau harga Poin)
+  amount            Int           
+  
+  // 🔥 KOLOM BARU: Buat nyimpen potongan komisi admin dan bersih dosen
+  platform_fee      Int           @default(0)
+  net_revenue       Int           @default(0)
+
   status            PaymentStatus @default(PENDING)
   
-  // Kesiapan Gateway (Midtrans/Xendit)
   payment_url       String?       
   gateway_reference String?       
   
@@ -196,8 +200,6 @@ model Material {
   order_index     Int          
   
   is_free_preview Boolean      @default(false) 
-  
-  // 🔥 TAMBAHAN BARU: Harga untuk buka materi secara eceran pakai Nusa Points
   unlock_points   Int          @default(3000)
   
   created_at      DateTime     @default(now())
@@ -206,28 +208,21 @@ model Material {
   chapter         Chapter      @relation(fields: [chapter_id], references: [id], onDelete: Cascade)
   progress        StudentProgress[]
   submissions     Submission[]
-  
-  // 🔥 RELASI BARU: Histori pembelian eceran untuk materi ini
   unlocks         MaterialUnlock[]
 
   @@index([chapter_id])
   @@map("materials")
 }
 
-// ==================================================
-// 🔥 TABEL BARU: Transaksi Pembelian Materi Eceran
-// ==================================================
 model MaterialUnlock {
   id          String   @id @default(uuid())
   user_id     String
   material_id String
   unlocked_at DateTime @default(now())
   
-  // Relasi
   user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
   material    Material @relation(fields: [material_id], references: [id], onDelete: Cascade)
 
-  // Mencegah user beli materi yang sama berkali-kali
   @@unique([user_id, material_id])
   @@map("material_unlocks")
 }
@@ -271,4 +266,40 @@ model Submission {
   @@index([material_id])
   @@index([status])
   @@map("submissions")
+}
+
+model Notification {
+  id          String   @id @default(uuid())
+  user_id     String   
+  title       String   
+  message     String   @db.Text 
+  is_read     Boolean  @default(false) 
+  
+  created_at  DateTime @default(now())
+
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@map("notifications")
+}
+
+// ==================================================
+// 🔥 TABEL BARU: Riwayat Penarikan Dana Dosen (Withdrawal)
+// ==================================================
+model Withdrawal {
+  id             String         @id @default(uuid())
+  lecturer_id    String
+  amount         Int
+  bank_name      String
+  account_number String
+  account_name   String
+  status         ApprovalStatus @default(PENDING) // PENDING (Minta tarik), APPROVED (Sudah ditransfer admin), REJECTED (Ditolak)
+  
+  created_at     DateTime       @default(now())
+  updated_at     DateTime       @updatedAt
+
+  lecturer       User           @relation(fields: [lecturer_id], references: [id], onDelete: Cascade)
+
+  @@index([lecturer_id])
+  @@map("withdrawals")
 }

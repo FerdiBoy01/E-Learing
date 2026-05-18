@@ -1,17 +1,33 @@
 const express = require("express");
 const courseController = require("../controllers/course.controller");
 const validate = require("../middlewares/validate");
-const { createCourseSchema } = require("../validations/course.validation");
+const { createCourseSchema = {} } = require("../validations/course.validation");
 const { protect, restrictTo } = require("../middlewares/auth.middleware");
 
 const router = express.Router();
 
+// Semua rute di bawah ini wajib melintasi satpam login
 router.use(protect);
 
 // ==========================================
-// RUTE KHUSUS MAHASISWA (STUDENT) - Taruh di ATAS /:id
+// 🔥 GLOBAL NOTIFICATION SYSTEMS (Semua Role Bisa Akses)
 // ==========================================
-// 🔥 Rute ini HARUS di atas /:id biar kata "unlocked-materials" ga dikira ID kelas
+// Wajib ditaruh di paling atas agar tidak tabrakan dengan rute dinamis /:id
+router.get("/notifications/me", courseController.getMyNotifications);
+router.patch("/notifications/:id/read", courseController.readNotification);
+
+// ==========================================
+// RUTE MANAGEMENT INTERNAL PENGURUS/PENGAJAR
+// ==========================================
+router.get(
+  "/lecturer/me",
+  restrictTo("LECTURER", "CREATOR", "ADMIN"),
+  courseController.getLecturerCourses,
+);
+
+// ==========================================
+// RUTE KHUSUS MAHASISWA (STUDENT)
+// ==========================================
 router.get(
   "/unlocked-materials/me",
   restrictTo("STUDENT"),
@@ -19,13 +35,13 @@ router.get(
 );
 
 // ==========================================
-// RUTE GLOBAL (Semua Role)
+// RUTE KATALOG GLOBAL (Bisa Diakses Semua Pengguna)
 // ==========================================
 router.get("/", courseController.getAllCourses);
 router.get("/:id", courseController.getCourseById);
 
 // ==========================================
-// LANJUTAN RUTE MAHASISWA
+// LANJUTAN KENDALI MAHASISWA (STUDENT ENGINE)
 // ==========================================
 router.get(
   "/:id/enroll-status",
@@ -39,7 +55,7 @@ router.post(
 );
 
 // ==========================================
-// RUTE KHUSUS PENGAJAR (LECTURER, CREATOR, ADMIN)
+// AKSI MODERASI & MODUL (LECTURER, CREATOR, ADMIN)
 // ==========================================
 router.use(restrictTo("LECTURER", "CREATOR", "ADMIN"));
 router.post("/", validate(createCourseSchema), courseController.createCourse);
